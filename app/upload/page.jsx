@@ -160,7 +160,7 @@ const UploadPage = () => {
           <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
               <h2 className="text-xl font-semibold text-gray-700">Uploaded Files:</h2>
-              <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-600 hover:underline self-start sm:self-auto">
+              <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-600 hover:underline self-start sm:self-auto cursor-pointer">
                 Sort by Date: {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
               </button>
             </div>
