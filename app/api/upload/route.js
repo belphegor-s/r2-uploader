@@ -35,29 +35,48 @@ export async function POST(req) {
 
       console.log('File received:', { fieldname, filename, encoding, mimeType });
 
-      const uploadPromise = streamToBuffer(file)
-        .then((buffer) => {
-          const key = `uploads/${randomUUID()}-${filename}`;
+      const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+      let fileSize = 0;
+      const chunks = [];
 
-          const command = new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: key,
-            Body: buffer,
-            ContentType: mimeType,
-            ACL: 'public-read',
-          });
+      file.on('data', (chunk) => {
+        fileSize += chunk.length;
 
-          return r2Client.send(command).then(() => {
-            const publicUrl = `https://storage.pixly.sh/${key}`;
-            fileUrls.push(publicUrl);
-          });
-        })
-        .catch((err) => {
-          console.error('Upload failed:', err);
-          reject(new NextResponse('File upload failed', { status: 500 }));
+        if (fileSize > MAX_FILE_SIZE) {
+          file.unpipe(); // stop reading
+          file.resume(); // discard the rest
+          const error = new Error(`File "${filename}" exceeds 100MB limit.`);
+          error.statusCode = 413;
+          return reject(new NextResponse(error.message, { status: error.statusCode }));
+        }
+
+        chunks.push(chunk);
+      });
+
+      file.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        const key = `uploads/${randomUUID()}-${filename}`;
+
+        const command = new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME,
+          Key: key,
+          Body: buffer,
+          ContentType: mimeType,
+          ACL: 'public-read',
         });
 
-      uploadPromises.push(uploadPromise);
+        const uploadPromise = r2Client.send(command).then(() => {
+          const publicUrl = `https://storage.pixly.sh/${key}`;
+          fileUrls.push(publicUrl);
+        });
+
+        uploadPromises.push(uploadPromise);
+      });
+
+      file.on('error', (err) => {
+        console.error('File stream error:', err);
+        reject(new NextResponse('File stream error', { status: 500 }));
+      });
     });
 
     busboy.on('error', (err) => {
