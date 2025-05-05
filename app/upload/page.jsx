@@ -103,12 +103,13 @@ const UploadPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex justify-center items-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex justify-center items-center p-4 sm:p-6">
       {loading ? (
         <Loader />
       ) : (
-        <div>
-          <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-xl">
+        <div className="w-full max-w-2xl">
+          {/* Upload Card */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 mb-8">
             <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">Upload Files</h1>
 
             <div className="mb-4">
@@ -138,14 +139,14 @@ const UploadPage = () => {
 
             {fileUrls.length > 0 && (
               <div className="mt-6">
-                <h2 className="text-xl font-semibold text-gray-700 mb-2">Uploaded Files:</h2>
+                <h2 className="text-xl font-semibold text-gray-700 mb-2">Recently Uploaded:</h2>
                 <ul className="space-y-3 text-sm">
                   {fileUrls.map((file, idx) => (
-                    <li key={idx} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md p-2">
-                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[70%]">
+                    <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 border border-gray-200 rounded-md p-2">
+                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-full sm:max-w-[70%]">
                         {file.name}
                       </a>
-                      <button onClick={() => handleCopy(file.url)} className="ml-4 px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 cursor-pointer">
+                      <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 cursor-pointer">
                         📋 Copy
                       </button>
                     </li>
@@ -154,21 +155,24 @@ const UploadPage = () => {
               </div>
             )}
           </div>
-          <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-xl mt-8">
-            <div className="flex justify-between items-center mb-2">
+
+          {/* Uploaded Files List */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
               <h2 className="text-xl font-semibold text-gray-700">Uploaded Files:</h2>
-              <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-600 hover:underline cursor-pointer">
+              <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-600 hover:underline self-start sm:self-auto">
                 Sort by Date: {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
               </button>
             </div>
-            <ul className="space-y-3 text-sm mt-6">
+
+            <ul className="space-y-3 text-sm">
               {sortedFiles.map((file, idx) => (
                 <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 border border-gray-200 rounded-md p-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-[70%] truncate">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[70%] truncate">
                     <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
                       {formatFileName(file.key)}
                     </a>
-                    <span className="text-gray-400 text-xs sm:mt-0 mt-1">{format(new Date(file.lastModified), 'PPpp')}</span>
+                    <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
                   </div>
                   <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 cursor-pointer">
                     📋 Copy
