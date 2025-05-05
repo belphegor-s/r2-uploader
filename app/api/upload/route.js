@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
@@ -13,13 +13,27 @@ const r2Client = new S3Client({
   endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
 });
 
-function streamToBuffer(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
+export async function GET() {
+  try {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Prefix: 'uploads/',
+    });
+
+    const result = await r2Client.send(listCommand);
+
+    const files = (result.Contents || []).map((file) => ({
+      key: file.Key,
+      url: `https://storage.pixly.sh/${file.Key}`,
+      size: file.Size,
+      lastModified: file.LastModified,
+    }));
+
+    return NextResponse.json({ files });
+  } catch (error) {
+    console.error('Error listing files:', error);
+    return new NextResponse('Failed to list files', { status: 500 });
+  }
 }
 
 export async function POST(req) {
