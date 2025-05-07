@@ -35,7 +35,6 @@ const UploadPage = () => {
   );
 
   const fetchUploadedFiles = async () => {
-    setLoading(true);
     try {
       const response = await fetch('/api/upload');
       const data = await response.json();
