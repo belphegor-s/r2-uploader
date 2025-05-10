@@ -3,6 +3,13 @@ import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/clien
 import { randomUUID } from 'crypto';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+
+const isValidApiKey = (req) => {
+  const apiKey = req.headers.get('x-api-key');
+  return apiKey === process.env.INTERNAL_API_KEY;
+};
 
 const r2Client = new S3Client({
   region: process.env.R2_REGION,
@@ -14,6 +21,12 @@ const r2Client = new S3Client({
 });
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  if (!session && !isValidApiKey(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const listCommand = new ListObjectsV2Command({
       Bucket: process.env.R2_BUCKET_NAME,
@@ -37,6 +50,12 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  const session = await getServerSession(authOptions);
+
+  if (!session && !isValidApiKey(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const contentType = req.headers.get('content-type') || '';
   const busboy = Busboy({ headers: { 'content-type': contentType } });
 
