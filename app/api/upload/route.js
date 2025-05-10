@@ -20,7 +20,7 @@ const r2Client = new S3Client({
   endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
 });
 
-export async function GET() {
+export async function GET(req) {
   const session = await getServerSession(authOptions);
 
   if (!session && !isValidApiKey(req)) {
