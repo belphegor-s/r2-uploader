@@ -103,7 +103,7 @@ const UploadPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex justify-center items-center">
+    <div className="min-h-screen bg-[#272727] text-[#f5f5f5] flex justify-center items-center">
       {loading ? (
         <Loader />
       ) : (
@@ -111,15 +111,15 @@ const UploadPage = () => {
           <Navbar />
           <div className="w-full max-w-2xl mx-auto p-4 sm:p-8">
             {/* Upload Card */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 mb-8">
-              <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">Upload Files</h1>
+            <div className="bg-[#313131] text-[#f5f5f5] rounded-2xl shadow-xl p-6 sm:p-8 mb-8">
+              <h1 className="text-2xl font-bold text-center text-[#f5f5f5] mb-6">Upload Files</h1>
               <div className="mb-4">
-                <input type="file" multiple onChange={handleFileChange} className="w-full text-gray-800 border border-gray-300 rounded-md p-3 cursor-pointer" />
+                <input type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
               </div>
               {files && (
-                <div className="mb-4 bg-gray-50 border border-gray-200 rounded-md p-4">
-                  <h2 className="font-semibold text-gray-700 mb-2">Selected Files:</h2>
-                  <ul className="space-y-1 text-gray-600 text-sm">
+                <div className="mb-4 bg-[#313131] border border-gray-700 rounded-md p-4">
+                  <h2 className="font-semibold text-[#f5f5f5] mb-2">Selected Files:</h2>
+                  <ul className="space-y-1 text-[#f5f5f5] text-sm">
                     {Array.from(files).map((file, idx) => (
                       <li key={idx}>
                         📄 <span className="font-medium">{file.name}</span> — {formatFileSize(file.size)}
@@ -154,24 +154,24 @@ const UploadPage = () => {
               )}
             </div>
             {/* Uploaded Files List */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+            <div className="bg-[#313131] rounded-2xl shadow-xl p-6 sm:p-8">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
-                <h2 className="text-xl font-semibold text-gray-700">Uploaded Files:</h2>
-                <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-600 hover:underline self-start sm:self-auto cursor-pointer">
+                <h2 className="text-xl font-semibold text-[#f5f5f5]">Uploaded Files:</h2>
+                <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-400 hover:underline self-start sm:self-auto cursor-pointer">
                   Sort by Date: {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
                 </button>
               </div>
 
               <ul className="space-y-3 text-sm">
                 {sortedFiles.map((file, idx) => (
-                  <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 border border-gray-200 rounded-md p-2">
+                  <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[70%] truncate">
-                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate">
                         {formatFileName(file.key)}
                       </a>
                       <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
                     </div>
-                    <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 cursor-pointer">
+                    <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
                       📋 Copy
                     </button>
                   </li>
