@@ -221,7 +221,7 @@ const PrivateUploadPage = () => {
             </div>
           </div>
           {selectedFile && (
-            <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-fade-in`}>
+            <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-fade-in p-4`}>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
