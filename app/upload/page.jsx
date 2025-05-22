@@ -5,19 +5,10 @@ import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
 import { format } from 'date-fns';
 import Navbar from '../components/Navbar';
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
-
-const formatFileSize = (bytes) => {
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  if (bytes === 0) return '0 B';
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
-};
-
-function formatFileName(key) {
-  return key.replace(/^uploads\/[a-f0-9\-]+-/, '');
-}
+import Link from 'next/link';
+import { MAX_FILE_SIZE } from '@/data/constants';
+import { formatFileSize } from '@/utils/formatFileSize';
+import { formatFileName } from '@/utils/formatFileName';
 
 const UploadPage = () => {
   const [loading, setLoading] = useState(true);
@@ -31,7 +22,7 @@ const UploadPage = () => {
       [...uploadedFiles].sort((a, b) => {
         return sortOrder === 'asc' ? new Date(a.lastModified) - new Date(b.lastModified) : new Date(b.lastModified) - new Date(a.lastModified);
       }),
-    [uploadedFiles, sortOrder]
+    [uploadedFiles, sortOrder],
   );
 
   const fetchUploadedFiles = async () => {
@@ -103,16 +94,23 @@ const UploadPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#272727] text-[#f5f5f5] flex justify-center items-center">
+    <div className="min-h-screen bg-[#272727] text-[#f5f5f5]">
+      <Navbar />
       {loading ? (
-        <Loader />
+        <div className="mt-8">
+          <Loader />
+        </div>
       ) : (
         <div className="w-full">
-          <Navbar />
           <div className="w-full max-w-2xl mx-auto p-4 sm:p-8">
+            <div className="w-max ml-auto">
+              <Link href="/upload/private" className="text-blue-500 hover:text-blue-300 transition-all">
+                Private Upload &rarr;
+              </Link>
+            </div>
             {/* Upload Card */}
-            <div className="bg-[#313131] text-[#f5f5f5] rounded-2xl shadow-xl p-6 sm:p-8 mb-8">
-              <h1 className="text-2xl font-bold text-center text-[#f5f5f5] mb-6">Upload Files</h1>
+            <div className="bg-[#313131] text-[#f5f5f5] rounded-2xl shadow-xl p-6 sm:p-8 mb-8 mt-2">
+              <h1 className="text-2xl font-bold text-center text-[#f5f5f5] mb-6">Upload Files (Public)</h1>
               <div className="mb-4">
                 <input type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
               </div>
@@ -137,14 +135,14 @@ const UploadPage = () => {
               </button>
               {fileUrls.length > 0 && (
                 <div className="mt-6">
-                  <h2 className="text-xl font-semibold text-gray-700 mb-2">Recently Uploaded:</h2>
+                  <h2 className="text-xl font-semibold text-[#f5f5f5] mb-2">Recently Uploaded:</h2>
                   <ul className="space-y-3 text-sm">
                     {fileUrls.map((file, idx) => (
-                      <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-gray-50 border border-gray-200 rounded-md p-2">
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-full sm:max-w-[70%]">
+                      <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate">
                           {file.name}
                         </a>
-                        <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 cursor-pointer">
+                        <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
                           📋 Copy
                         </button>
                       </li>

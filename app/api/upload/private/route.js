@@ -1,24 +1,12 @@
 import { NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-
-export const isValidApiKey = (req) => {
-  const apiKey = req.headers.get('x-api-key');
-  return apiKey === process.env.INTERNAL_API_KEY;
-};
-
-export const r2Client = new S3Client({
-  region: process.env.R2_REGION,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-  },
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-});
+import { isValidApiKey, r2Client } from '../route';
 
 export async function GET(req) {
   const session = await getServerSession(authOptions);
@@ -29,15 +17,14 @@ export async function GET(req) {
 
   try {
     const listCommand = new ListObjectsV2Command({
-      Bucket: process.env.R2_BUCKET_NAME,
-      Prefix: 'uploads/',
+      Bucket: process.env.R2_PRIVATE_BUCKET_NAME,
+      Prefix: 'private/',
     });
 
     const result = await r2Client.send(listCommand);
 
     const files = (result.Contents || []).map((file) => ({
       key: file.Key,
-      url: `https://storage.pixly.sh/${file.Key}`,
       size: file.Size,
       lastModified: file.LastModified,
     }));
@@ -59,7 +46,6 @@ export async function POST(req) {
   const contentType = req.headers.get('content-type') || '';
   const busboy = Busboy({ headers: { 'content-type': contentType } });
 
-  const fileUrls = [];
   const uploadPromises = [];
 
   return new Promise((resolve, reject) => {
@@ -88,19 +74,17 @@ export async function POST(req) {
 
       file.on('end', () => {
         const buffer = Buffer.concat(chunks);
-        const key = `uploads/${randomUUID()}-${filename}`;
+        const key = `private/${randomUUID()}-${filename}`;
 
         const command = new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET_NAME,
+          Bucket: process.env.R2_PRIVATE_BUCKET_NAME,
           Key: key,
           Body: buffer,
           ContentType: mimeType,
-          ACL: 'public-read',
         });
 
         const uploadPromise = r2Client.send(command).then(() => {
-          const publicUrl = `https://storage.pixly.sh/${key}`;
-          fileUrls.push(publicUrl);
+          console.log('Upload complete:', key);
         });
 
         uploadPromises.push(uploadPromise);
@@ -122,7 +106,7 @@ export async function POST(req) {
       try {
         await Promise.all(uploadPromises);
         console.log('All uploads complete.');
-        resolve(NextResponse.json({ urls: fileUrls }));
+        resolve(NextResponse.json({ message: 'Upload complete' }));
       } catch (err) {
         console.error('Error awaiting uploads:', err);
         reject(new NextResponse('Upload processing failed', { status: 500 }));
