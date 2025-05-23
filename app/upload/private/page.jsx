@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 import { format } from 'date-fns';
@@ -28,8 +28,9 @@ const PrivateUploadPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [expiry, setExpiry] = useState(30);
   const [sendEmail, setSendEmail] = useState(false);
-  const [email, setEmail] = useState('');
+  const [emails, setEmails] = useState(['']);
   const [generating, setGenerating] = useState(false);
+  const emailsRef = useRef([]);
 
   const fetchUploadedFiles = async () => {
     try {
@@ -92,7 +93,7 @@ const PrivateUploadPage = () => {
     setSelectedFile(file);
     setExpiry(30);
     setSendEmail(false);
-    setEmail('');
+    setEmails(['']);
   };
 
   const generatePresignedUrl = async () => {
@@ -108,7 +109,7 @@ const PrivateUploadPage = () => {
         body: JSON.stringify({
           key: selectedFile.key,
           expiry: Number(expiry),
-          email: sendEmail ? email : null,
+          emails: sendEmail ? emails.filter((email) => email.trim()) : null,
         }),
       });
 
@@ -136,6 +137,35 @@ const PrivateUploadPage = () => {
   useEffect(() => {
     fetchUploadedFiles();
   }, []);
+
+  const handleEmailChange = (index, value) => {
+    const updated = [...emails];
+    updated[index] = value;
+    setEmails(updated);
+  };
+
+  const addEmailField = () => {
+    if (emails.length >= 10) {
+      toast.error('You can only add up to 10 email recipients.');
+      return;
+    }
+    setEmails([...emails, '']);
+  };
+
+  const removeEmailField = (index) => {
+    const updated = emails.filter((_, i) => i !== index);
+    setEmails(updated.length > 0 ? updated : ['']);
+  };
+
+  useEffect(() => {
+    if (emailsRef.current && emailsRef.current.length > 0) {
+      const lastEl = [...emailsRef.current].reverse().find((el) => el !== null);
+
+      if (lastEl) {
+        lastEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [emails]);
 
   return (
     <div className="min-h-screen bg-[#272727] text-[#f5f5f5]">
@@ -248,7 +278,7 @@ const PrivateUploadPage = () => {
                 >
                   <h3 className="text-xl font-bold border-b border-gray-700 pb-4">Generate Pre-signed URL</h3>
                   <div className="space-y-4">
-                    <div>
+                    <div className="p-2">
                       <label className="block text-sm font-medium mb-1" htmlFor="expiry-select">
                         Expiry Duration
                       </label>
@@ -256,37 +286,60 @@ const PrivateUploadPage = () => {
                         id="expiry-select"
                         value={expiry}
                         onChange={(e) => setExpiry(Number(e.target.value))}
-                        className="block w-full p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        className="block w-full p-2 mt-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                         required
                         disabled={generating}
                       >
-                        <option value={30}>30 seconds</option>
-                        <option value={60}>1 minute</option>
-                        <option value={300}>5 minutes</option>
-                        <option value={600}>10 minutes</option>
-                        <option value={1800}>30 minutes</option>
-                        <option value={3600}>1 hour</option>
+                        <optgroup label="Short">
+                          <option value={30}>30 seconds</option>
+                          <option value={60}>1 minute</option>
+                          <option value={120}>2 minutes</option>
+                          <option value={300}>5 minutes</option>
+                        </optgroup>
+                        <optgroup label="Medium">
+                          <option value={600}>10 minutes</option>
+                          <option value={900}>15 minutes</option>
+                          <option value={1800}>30 minutes</option>
+                        </optgroup>
+                        <optgroup label="Long">
+                          <option value={2700}>45 minutes</option>
+                          <option value={3600}>1 hour</option>
+                        </optgroup>
                       </select>
                     </div>
-                    <label htmlFor="send-email-checkbox" className={`text-sm cursor-pointer flex items-center gap-2 w-max select-none ${generating ? 'text-gray-500' : ''}`}>
-                      <input type="checkbox" id="send-email-checkbox" checked={sendEmail} onChange={() => setSendEmail(!sendEmail)} className="accent-blue-600" disabled={generating} />
+                    <label htmlFor="send-email-checkbox" className={`text-sm cursor-pointer flex items-center p-2 gap-2 w-max select-none ${generating ? 'text-gray-500' : ''}`}>
+                      <input type="checkbox" id="send-email-checkbox" checked={sendEmail} onChange={() => setSendEmail((prev) => !prev)} className="accent-blue-600" disabled={generating} />
                       Send link via email
                     </label>
                     {sendEmail && (
                       <div>
-                        <label className="block text-sm font-medium mb-1" htmlFor="email-input">
-                          Recipient Email
-                        </label>
-                        <input
-                          type="email"
-                          id="email-input"
-                          placeholder="john.doe@example.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="block w-full p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                          required={sendEmail}
-                          disabled={generating}
-                        />
+                        <label className="block text-sm font-medium mb-1 px-2">Recipient Emails</label>
+                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar p-2 mb-2">
+                          {emails.map((emailVal, index) => (
+                            <div key={index} className="flex gap-2" ref={(el) => (emailsRef.current[index] = el)}>
+                              <input
+                                type="email"
+                                placeholder="john.doe@example.com"
+                                value={emailVal}
+                                onChange={(e) => handleEmailChange(index, e.target.value)}
+                                className="flex-1 p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                required={sendEmail}
+                                disabled={generating}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeEmailField(index)}
+                                className={`text-red-400 hover:text-red-600 text-xs font-bold select-none ${index === 0 ? 'invisible' : ''}`}
+                                disabled={generating}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button type="button" onClick={addEmailField} className="mt-2 px-2 text-blue-400 hover:text-blue-600 text-sm select-none" disabled={generating}>
+                          + Add another email
+                        </button>
                       </div>
                     )}
                   </div>

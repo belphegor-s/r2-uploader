@@ -17,7 +17,7 @@ function isValidEmail(email) {
 
 export async function POST(req) {
   try {
-    const { key, expiry, email } = await req.json();
+    const { key, expiry, emails } = await req.json();
 
     if (!key || typeof expiry !== 'number') {
       return NextResponse.json({ message: 'Invalid request. Key and expiry required.' }, { status: 400 });
@@ -27,8 +27,8 @@ export async function POST(req) {
       return NextResponse.json({ message: `Expiry must be between ${MIN_EXPIRY} and ${MAX_EXPIRY} seconds.` }, { status: 400 });
     }
 
-    if (email && !isValidEmail(email)) {
-      return NextResponse.json({ message: 'Invalid email address.' }, { status: 400 });
+    if (emails && (!Array.isArray(emails) || emails.some((email) => !isValidEmail(email)))) {
+      return NextResponse.json({ message: 'Invalid email(s) provided.' }, { status: 400 });
     }
 
     const command = new GetObjectCommand({
@@ -40,12 +40,12 @@ export async function POST(req) {
       expiresIn: expiry,
     });
 
-    if (email) {
+    if (emails?.length > 0) {
       const fileName = formatFileName(key, 'private');
 
       const { data, error } = await resend.emails.send({
         from: fromEmail,
-        to: [email],
+        to: emails,
         subject: `Your Secure Download Link for "${fileName}"`,
         html: `
           <div style="font-family: sans-serif; color: #333; padding: 20px;">
@@ -74,7 +74,7 @@ export async function POST(req) {
       console.log('Resend Success:', data);
     }
 
-    return NextResponse.json({ url, ...(email && { message: `Your download link has been sent to ${email}.` }) });
+    return NextResponse.json({ url, ...(emails && { message: `Your download link has been sent to ${emails.join(', ')}.` }) });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ message: 'Failed to generate URL' }, { status: 500 });
