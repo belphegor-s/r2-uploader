@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { MAX_FILE_SIZE } from '@/data/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { formatFileName } from '@/utils/formatFileName';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const PrivateUploadPage = () => {
   const [loading, setLoading] = useState(true);
@@ -220,89 +221,106 @@ const PrivateUploadPage = () => {
               </ul>
             </div>
           </div>
-          {selectedFile && (
-            <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-fade-in p-4`}>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  generatePresignedUrl();
+          <AnimatePresence>
+            {selectedFile && (
+              <motion.div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                onClick={() => {
+                  if (generating) return;
+                  setSelectedFile(null);
                 }}
-                className="bg-[#1e1e1e] p-6 rounded-xl max-w-md w-full shadow-2xl text-white transform transition-all duration-300 animate-scale-in space-y-6"
               >
-                <h3 className="text-xl font-bold border-b border-gray-700 pb-4">Generate Pre-signed URL</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="expiry-select">
-                      Expiry Duration
+                <motion.form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    generatePresignedUrl();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-[#1e1e1e] p-6 rounded-xl max-w-md w-full shadow-2xl border border-slate-500 text-white space-y-6"
+                >
+                  <h3 className="text-xl font-bold border-b border-gray-700 pb-4">Generate Pre-signed URL</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1" htmlFor="expiry-select">
+                        Expiry Duration
+                      </label>
+                      <select
+                        id="expiry-select"
+                        value={expiry}
+                        onChange={(e) => setExpiry(Number(e.target.value))}
+                        className="block w-full p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        required
+                        disabled={generating}
+                      >
+                        <option value={30}>30 seconds</option>
+                        <option value={60}>1 minute</option>
+                        <option value={300}>5 minutes</option>
+                        <option value={600}>10 minutes</option>
+                        <option value={1800}>30 minutes</option>
+                        <option value={3600}>1 hour</option>
+                      </select>
+                    </div>
+                    <label htmlFor="send-email-checkbox" className={`text-sm cursor-pointer flex items-center gap-2 w-max select-none ${generating ? 'text-gray-500' : ''}`}>
+                      <input type="checkbox" id="send-email-checkbox" checked={sendEmail} onChange={() => setSendEmail(!sendEmail)} className="accent-blue-600" disabled={generating} />
+                      Send link via email
                     </label>
-                    <select
-                      id="expiry-select"
-                      value={expiry}
-                      onChange={(e) => setExpiry(Number(e.target.value))}
-                      className="block w-full p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                      required
+                    {sendEmail && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1" htmlFor="email-input">
+                          Recipient Email
+                        </label>
+                        <input
+                          type="email"
+                          id="email-input"
+                          placeholder="john.doe@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="block w-full p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          required={sendEmail}
+                          disabled={generating}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFile(null)}
+                      className="px-4 py-1.5 rounded border border-gray-500 text-sm text-gray-300 hover:bg-[#2a2a2a] transition disabled:opacity-50"
                       disabled={generating}
                     >
-                      <option value={30}>30 seconds</option>
-                      <option value={60}>1 minute</option>
-                      <option value={300}>5 minutes</option>
-                      <option value={600}>10 minutes</option>
-                      <option value={1800}>30 minutes</option>
-                      <option value={3600}>1 hour</option>
-                    </select>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-blue-600 px-4 py-1.5 rounded text-sm font-semibold hover:bg-blue-700 transition flex items-center justify-center disabled:opacity-50"
+                      disabled={generating}
+                    >
+                      {generating ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                          </svg>
+                          Generating...
+                        </>
+                      ) : (
+                        'Generate Link'
+                      )}
+                    </button>
                   </div>
-                  <label htmlFor="send-email-checkbox" className={`text-sm cursor-pointer flex items-center gap-2 w-max select-none ${generating ? 'text-gray-500' : ''}`}>
-                    <input type="checkbox" id="send-email-checkbox" checked={sendEmail} onChange={() => setSendEmail(!sendEmail)} className="accent-blue-600" disabled={generating} />
-                    Send link via email
-                  </label>
-                  {sendEmail && (
-                    <div>
-                      <label className="block text-sm font-medium mb-1" htmlFor="email-input">
-                        Recipient Email
-                      </label>
-                      <input
-                        type="email"
-                        id="email-input"
-                        placeholder="john.doe@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="block w-full p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                        required={sendEmail}
-                        disabled={generating}
-                      />
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedFile(null)}
-                    className="px-4 py-1.5 rounded border border-gray-500 text-sm text-gray-300 hover:bg-[#2a2a2a] transition disabled:opacity-50"
-                    disabled={generating}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 px-4 py-1.5 rounded text-sm font-semibold hover:bg-blue-700 transition flex items-center justify-center disabled:opacity-50"
-                    disabled={generating}
-                  >
-                    {generating ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                        </svg>
-                        Generating...
-                      </>
-                    ) : (
-                      'Generate Link'
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+                </motion.form>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </div>
