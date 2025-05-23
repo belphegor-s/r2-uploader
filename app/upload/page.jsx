@@ -115,7 +115,7 @@ const UploadPage = () => {
                 <input type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
               </div>
               {files && (
-                <div className="mb-4 bg-[#313131] border border-gray-700 rounded-md p-4">
+                <div className="mb-4 bg-[#313131] border border-slate-500 rounded-md p-4">
                   <h2 className="font-semibold text-[#f5f5f5] mb-2">Selected Files:</h2>
                   <ul className="space-y-1 text-[#f5f5f5] text-sm">
                     {Array.from(files).map((file, idx) => (
