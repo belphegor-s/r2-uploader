@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
-import { format } from 'date-fns';
+import { format, set } from 'date-fns';
 import Navbar from '../../components/Navbar';
 import Link from 'next/link';
 import { MAX_FILE_SIZE } from '@/data/constants';
@@ -32,6 +32,7 @@ const PrivateUploadPage = () => {
   const [emails, setEmails] = useState(['']);
   const [generating, setGenerating] = useState(false);
   const emailsRef = useRef([]);
+  const [generatedLink, setGeneratedLink] = useState('');
 
   const fetchUploadedFiles = async () => {
     try {
@@ -117,17 +118,18 @@ const PrivateUploadPage = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate URL');
 
+      setGeneratedLink(data.url);
       await copyToClipboard(data.url);
 
       if (data?.message) {
         toast.success(data.message, {
           duration: 5000,
         });
+      } else {
+        toast.success('Pre-signed URL generated', {
+          duration: 5000,
+        });
       }
-      toast.success('Pre-signed URL generated and copied to clipboard', {
-        duration: 5000,
-      });
-      setSelectedFile(null);
     } catch (err) {
       console.error(err);
       toast.error(err?.message || 'Failed to generate pre-signed URL');
@@ -135,6 +137,12 @@ const PrivateUploadPage = () => {
       setGenerating(false);
     }
   };
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setGeneratedLink('');
+    }
+  }, [selectedFile]);
 
   useEffect(() => {
     fetchUploadedFiles();
@@ -342,6 +350,30 @@ const PrivateUploadPage = () => {
                         <button type="button" onClick={addEmailField} className="mt-2 px-2 text-blue-400 hover:text-blue-600 text-sm select-none" disabled={generating}>
                           + Add another email
                         </button>
+                      </div>
+                    )}
+                    {generatedLink && (
+                      <div className="mt-4 text-sm text-gray-200 px-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate">
+                            Generated Link:{' '}
+                            <a href={generatedLink} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                              {generatedLink}
+                            </a>
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(generatedLink).then(() => {
+                                toast.success('Link copied to clipboard!');
+                              });
+                            }}
+                            className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer whitespace-nowrap"
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
