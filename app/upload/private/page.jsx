@@ -369,7 +369,7 @@ const PrivateUploadPage = () => {
                                 toast.success('Link copied to clipboard!');
                               });
                             }}
-                            className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer whitespace-nowrap"
+                            className="sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer whitespace-nowrap"
                           >
                             📋 Copy
                           </button>
