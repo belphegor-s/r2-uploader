@@ -29,3 +29,5 @@ async function copyToClipboard(text) {
     document.body.removeChild(textarea);
   }
 }
+
+export default copyToClipboard;

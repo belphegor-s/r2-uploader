@@ -10,7 +10,7 @@ import { MAX_FILE_SIZE } from '@/data/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { formatFileName } from '@/utils/formatFileName';
 import { AnimatePresence, motion } from 'framer-motion';
-import { copyToClipboard } from '@/utils/copyToClipboard';
+import copyToClipboard from '@/utils/copyToClipboard';
 
 const PrivateUploadPage = () => {
   const [loading, setLoading] = useState(true);
