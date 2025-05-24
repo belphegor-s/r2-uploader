@@ -116,7 +116,8 @@ const PrivateUploadPage = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate URL');
 
-      navigator.clipboard.writeText(data.url);
+      await copyToClipboard(data.url);
+
       if (data?.message) {
         toast.success(data.message, {
           duration: 5000,
