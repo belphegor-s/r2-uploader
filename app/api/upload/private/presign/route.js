@@ -8,12 +8,19 @@ import { formatFileName } from '@/utils/formatFileName';
 const resend = new Resend(process.env.RESEND_API_KEY);
 const fromEmail = 'Ayush Sharma <hello@ayushsharma.me>';
 
-const MIN_EXPIRY = 30;
-const MAX_EXPIRY = 3600;
+const MIN_EXPIRY = 30; // 30 seconds (keep as is)
+const MAX_EXPIRY = 604800; // 7 days (instead of 3600 = 1 hour)
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
+
+const formatDuration = (seconds) => {
+  if (seconds < 60) return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minute${Math.floor(seconds / 60) !== 1 ? 's' : ''}`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hour${Math.floor(seconds / 3600) !== 1 ? 's' : ''}`;
+  return `${Math.floor(seconds / 86400)} day${Math.floor(seconds / 86400) !== 1 ? 's' : ''}`;
+};
 
 export async function POST(req) {
   try {
@@ -24,7 +31,12 @@ export async function POST(req) {
     }
 
     if (expiry < MIN_EXPIRY || expiry > MAX_EXPIRY) {
-      return NextResponse.json({ message: `Expiry must be between ${MIN_EXPIRY} and ${MAX_EXPIRY} seconds.` }, { status: 400 });
+      return NextResponse.json(
+        {
+          message: `Expiry must be between ${MIN_EXPIRY} seconds and ${MAX_EXPIRY} seconds (7 days).`,
+        },
+        { status: 400 },
+      );
     }
 
     if (emails && (!Array.isArray(emails) || emails.some((email) => !isValidEmail(email)))) {
@@ -52,7 +64,7 @@ export async function POST(req) {
             <h2>🔐 Here's your secure file link</h2>
             <p>You requested access to the file <strong>${fileName}</strong>.</p>
             <p>
-              This link will expire in <strong>${expiry < 60 ? `${expiry} second${expiry !== 1 ? 's' : ''}` : `${Math.floor(expiry / 60)} minute${Math.floor(expiry / 60) !== 1 ? 's' : ''}`}</strong>.
+              This link will expire in <strong>${formatDuration(expiry)}</strong>.
             </p>
             <p>
               <a href="${url}" style="display:inline-block;padding:10px 15px;background-color:#2563eb;color:white;text-decoration:none;border-radius:5px;margin-top:10px;">

@@ -33,6 +33,8 @@ const PrivateUploadPage = () => {
   const [generating, setGenerating] = useState(false);
   const emailsRef = useRef([]);
   const [generatedLink, setGeneratedLink] = useState('');
+  const [customExpiry, setCustomExpiry] = useState('');
+  const [customExpiryUnit, setCustomExpiryUnit] = useState('minutes');
 
   const fetchUploadedFiles = async () => {
     try {
@@ -94,12 +96,48 @@ const PrivateUploadPage = () => {
   const openPresignModal = (file) => {
     setSelectedFile(file);
     setExpiry(30);
+    setCustomExpiry('');
+    setCustomExpiryUnit('minutes');
     setSendEmail(false);
     setEmails(['']);
   };
 
+  const calculateExpirySeconds = (capAtMax = true) => {
+    if (expiry !== 'custom') return expiry;
+
+    const customValue = parseInt(customExpiry);
+    if (!customValue || customValue <= 0) return 30; // fallback
+
+    const multipliers = {
+      seconds: 1,
+      minutes: 60,
+      hours: 3600,
+      days: 86400,
+    };
+
+    const totalSeconds = customValue * multipliers[customExpiryUnit];
+    const maxExpiry = 604800; // 7 days in seconds (AWS S3 limit)
+
+    // Only cap at max if requested (for API calls), otherwise return raw value (for validation display)
+    return capAtMax ? Math.min(totalSeconds, maxExpiry) : totalSeconds;
+  };
+
   const generatePresignedUrl = async () => {
     if (generating) return;
+
+    if (expiry === 'custom') {
+      const customValue = parseInt(customExpiry);
+      if (!customValue || customValue <= 0) {
+        toast.error('Please enter a valid expiry duration');
+        return;
+      }
+
+      const totalSeconds = calculateExpirySeconds();
+      if (totalSeconds > 604800) {
+        toast.error('Maximum expiry duration is 7 days due to AWS S3 limits');
+        return;
+      }
+    }
 
     setGenerating(true);
     try {
@@ -110,7 +148,7 @@ const PrivateUploadPage = () => {
         },
         body: JSON.stringify({
           key: selectedFile.key,
-          expiry: Number(expiry),
+          expiry: calculateExpirySeconds(true),
           emails: sendEmail ? emails.filter((email) => email.trim()) : null,
         }),
       });
@@ -295,7 +333,7 @@ const PrivateUploadPage = () => {
                       <select
                         id="expiry-select"
                         value={expiry}
-                        onChange={(e) => setExpiry(Number(e.target.value))}
+                        onChange={(e) => setExpiry(e.target.value === 'custom' ? 'custom' : Number(e.target.value))}
                         className="block w-full p-2 mt-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                         required
                         disabled={generating}
@@ -315,8 +353,63 @@ const PrivateUploadPage = () => {
                           <option value={2700}>45 minutes</option>
                           <option value={3600}>1 hour</option>
                         </optgroup>
+                        <optgroup label="Custom">
+                          <option value="custom">Custom Duration</option>
+                        </optgroup>
                       </select>
+                      {expiry === 'custom' && (
+                        <div className="mt-3 flex gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max="10080" // 7 days in minutes
+                            value={customExpiry}
+                            onChange={(e) => setCustomExpiry(e.target.value)}
+                            placeholder="Enter duration"
+                            className="flex-1 p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                            required
+                            disabled={generating}
+                          />
+                          <select
+                            value={customExpiryUnit}
+                            onChange={(e) => setCustomExpiryUnit(e.target.value)}
+                            className="p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                            disabled={generating}
+                          >
+                            <option value="seconds">Seconds</option>
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
+                            <option value="days">Days</option>
+                          </select>
+                        </div>
+                      )}
+                      {expiry === 'custom' && customExpiry && (
+                        <div className="mt-4 text-xs text-gray-400">
+                          {(() => {
+                            const totalSeconds = calculateExpirySeconds(false); // Don't cap for display validation
+                            const maxExpiry = 604800;
+
+                            if (totalSeconds > maxExpiry) {
+                              return <span className="text-red-400">⚠️ Exceeds maximum limit (7 days). Will be capped at 7 days.</span>;
+                            }
+
+                            const days = Math.floor(totalSeconds / 86400);
+                            const hours = Math.floor((totalSeconds % 86400) / 3600);
+                            const minutes = Math.floor((totalSeconds % 3600) / 60);
+                            const seconds = totalSeconds % 60;
+
+                            let display = [];
+                            if (days > 0) display.push(`${days} day${days !== 1 ? 's' : ''}`);
+                            if (hours > 0) display.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+                            if (minutes > 0) display.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+                            if (seconds > 0) display.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+
+                            return `Duration: ${display.join(' ')}`;
+                          })()}
+                        </div>
+                      )}
                     </div>
+
                     <label htmlFor="send-email-checkbox" className={`text-sm cursor-pointer flex items-center p-2 gap-2 w-max select-none ${generating ? 'text-gray-500' : ''}`}>
                       <input type="checkbox" id="send-email-checkbox" checked={sendEmail} onChange={() => setSendEmail((prev) => !prev)} className="accent-blue-600" disabled={generating} />
                       Send link via email
