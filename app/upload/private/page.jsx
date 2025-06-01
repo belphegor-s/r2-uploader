@@ -35,6 +35,7 @@ const PrivateUploadPage = () => {
   const [generatedLink, setGeneratedLink] = useState('');
   const [customExpiry, setCustomExpiry] = useState('');
   const [customExpiryUnit, setCustomExpiryUnit] = useState('minutes');
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const fetchUploadedFiles = async () => {
     try {
@@ -459,12 +460,16 @@ const PrivateUploadPage = () => {
                               e.preventDefault();
                               e.stopPropagation();
                               navigator.clipboard.writeText(generatedLink).then(() => {
-                                toast.success('Link copied to clipboard!');
+                                // toast.success('Link copied to clipboard!');
+                                setCopySuccess(true);
+                                setTimeout(() => {
+                                  setCopySuccess(false);
+                                }, 1000);
                               });
                             }}
                             className="sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer whitespace-nowrap"
                           >
-                            📋 Copy
+                            {copySuccess ? '✅ Copied!' : '📋 Copy'}
                           </button>
                         </div>
                       </div>
