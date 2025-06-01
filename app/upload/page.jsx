@@ -24,6 +24,16 @@ const UploadPage = () => {
       }),
     [uploadedFiles, sortOrder],
   );
+  const [copiedStates, setCopiedStates] = useState({});
+
+  const handleCopy = (url, fileId) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedStates((prev) => ({ ...prev, [fileId]: true }));
+      setTimeout(() => {
+        setCopiedStates((prev) => ({ ...prev, [fileId]: false }));
+      }, 1000);
+    });
+  };
 
   const fetchUploadedFiles = async () => {
     try {
@@ -83,12 +93,6 @@ const UploadPage = () => {
     }
   };
 
-  const handleCopy = (url) => {
-    navigator.clipboard.writeText(url).then(() => {
-      toast.success('Link copied to clipboard!');
-    });
-  };
-
   useEffect(() => {
     fetchUploadedFiles();
   }, []);
@@ -102,7 +106,7 @@ const UploadPage = () => {
         </div>
       ) : (
         <div className="w-full">
-          <div className="w-full max-w-2xl mx-auto p-4 sm:p-8">
+          <div className="w-full max-w-3xl mx-auto p-4 sm:p-8">
             <div className="w-max ml-auto">
               <Link href="/upload/private" className="text-blue-500 hover:text-blue-300 transition-all">
                 Private Upload &rarr;
@@ -139,11 +143,14 @@ const UploadPage = () => {
                   <ul className="space-y-3 text-sm">
                     {fileUrls.map((file, idx) => (
                       <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate">
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate" title={file.name}>
                           {file.name}
                         </a>
-                        <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
-                          📋 Copy
+                        <button
+                          onClick={() => handleCopy(file.url, `recent-${idx}`)}
+                          className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer"
+                        >
+                          {copiedStates[`recent-${idx}`] ? '✅ Copied!' : '📋 Copy'}
                         </button>
                       </li>
                     ))}
@@ -164,13 +171,16 @@ const UploadPage = () => {
                 {sortedFiles.map((file, idx) => (
                   <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[70%] truncate">
-                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate">
+                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate" title={formatFileName(file.key)}>
                         {formatFileName(file.key)}
                       </a>
                       <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
                     </div>
-                    <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
-                      📋 Copy
+                    <button
+                      onClick={() => handleCopy(file.url, `uploaded-${idx}`)}
+                      className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer"
+                    >
+                      {copiedStates[`uploaded-${idx}`] ? '✅ Copied!' : '📋 Copy'}
                     </button>
                   </li>
                 ))}
