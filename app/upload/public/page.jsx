@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import Loader from '../components/Loader';
+import Loader from '../../components/Loader';
 import { format } from 'date-fns';
-import Navbar from '../components/Navbar';
+import Navbar from '../../components/Navbar';
 import Link from 'next/link';
 import { MAX_FILE_SIZE } from '@/data/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
