@@ -11,6 +11,7 @@ import { formatFileSize } from '@/utils/formatFileSize';
 import { formatFileName } from '@/utils/formatFileName';
 import { AnimatePresence, motion } from 'framer-motion';
 import copyToClipboard from '@/utils/copyToClipboard';
+import { ChevronLeft, FileText } from 'lucide-react';
 
 const PrivateUploadPage = () => {
   const [loading, setLoading] = useState(true);
@@ -36,6 +37,7 @@ const PrivateUploadPage = () => {
   const [customExpiry, setCustomExpiry] = useState('');
   const [customExpiryUnit, setCustomExpiryUnit] = useState('minutes');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [deletingStates, setDeletingStates] = useState({});
 
   const fetchUploadedFiles = async () => {
     try {
@@ -177,6 +179,39 @@ const PrivateUploadPage = () => {
     }
   };
 
+  const handleDelete = async (key) => {
+    if (deletingStates[key]) return;
+
+    if (!confirm(`Are you sure you want to delete this file?\n\nFile Name: ${formatFileName(key, 'private')}\n\nTHIS ACTION IS IRREVERSIBLE!`)) {
+      return;
+    }
+
+    setDeletingStates((prev) => ({ ...prev, [key]: true }));
+
+    try {
+      const response = await fetch(`/api/upload/private`, {
+        method: 'DELETE',
+        body: JSON.stringify({ key }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        toast.success('File deleted successfully');
+        setDeletingStates((prev) => ({ ...prev, [key]: false }));
+        fetchUploadedFiles();
+      } else {
+        toast.error('Failed to delete file. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file. Please try again.');
+    } finally {
+      setDeletingStates((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
   useEffect(() => {
     if (!selectedFile) {
       setGeneratedLink('');
@@ -227,8 +262,8 @@ const PrivateUploadPage = () => {
         <div className="w-full">
           <div className="w-full max-w-3xl mx-auto p-4 sm:p-8">
             <div>
-              <Link href="/upload/public" className="text-blue-500 hover:text-blue-300 transition-all">
-                &larr; Public Upload
+              <Link href="/upload/public" className="text-blue-500 hover:text-blue-300 transition-all  flex items-center gap-1">
+                <ChevronLeft size={18} /> Public Upload
               </Link>
             </div>
             {/* Upload Card */}
@@ -240,13 +275,17 @@ const PrivateUploadPage = () => {
               {files && (
                 <div className="mb-4 bg-[#313131] border border-slate-500 rounded-md p-4">
                   <h2 className="font-semibold text-[#f5f5f5] mb-2">Selected Files:</h2>
-                  <ul className="space-y-1 text-[#f5f5f5] text-sm">
-                    {Array.from(files).map((file, idx) => (
-                      <li key={idx}>
-                        📄 <span className="font-medium">{file.name}</span> — {formatFileSize(file.size)}
-                      </li>
-                    ))}
-                  </ul>
+                  {Array.from(files).map((file, idx) => (
+                    <li key={`selected-file-${idx}`} className="grid grid-cols-[auto_1fr] items-center gap-2">
+                      <FileText size={14} />
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="font-medium truncate block max-w-full" title={file.name}>
+                          {file.name}
+                        </span>
+                        <span className="shrink-0">- {formatFileSize(file.size)}</span>
+                      </div>
+                    </li>
+                  ))}
                 </div>
               )}
               <button
@@ -265,9 +304,6 @@ const PrivateUploadPage = () => {
                         <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold truncate" title={file.name}>
                           {file.name}
                         </a>
-                        {/* <button onClick={() => handleCopy(file.url)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
-                          📋 Copy
-                        </button> */}
                       </li>
                     ))}
                   </ul>
@@ -279,25 +315,38 @@ const PrivateUploadPage = () => {
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                 <h2 className="text-xl font-semibold text-[#f5f5f5]">Uploaded Files:</h2>
                 <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="text-sm text-blue-400 hover:underline self-start sm:self-auto cursor-pointer">
-                  Sort by Date: {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
+                  Sort by: {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
                 </button>
               </div>
 
-              <ul className="space-y-3 text-sm">
-                {sortedFiles.map((file, idx) => (
-                  <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[60%] truncate">
-                      <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold truncate" title={formatFileName(file.key, 'private')}>
-                        {formatFileName(file.key, 'private')}
-                      </a>
-                      <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
-                    </div>
-                    <button onClick={() => openPresignModal(file)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
-                      🔐 Generate Pre-signed URL
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {sortedFiles.length > 0 ? (
+                <ul className="space-y-3 text-sm">
+                  {sortedFiles.map((file, idx) => (
+                    <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[60%] truncate">
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold truncate" title={formatFileName(file.key, 'private')}>
+                          {formatFileName(file.key, 'private')}
+                        </a>
+                        <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
+                      </div>
+                      <div>
+                        <button onClick={() => openPresignModal(file)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
+                          Generate Pre-signed URL
+                        </button>
+                        <button
+                          className="mt-2 sm:mt-0 ml-2 px-3 py-1 text-xs bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                          onClick={() => handleDelete(file.key)}
+                          disabled={deletingStates[file.key]}
+                        >
+                          {deletingStates[file.key] ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center text-gray-400 text-sm py-8">No files found. Please upload some files.</div>
+              )}
             </div>
           </div>
           <AnimatePresence>
@@ -469,7 +518,7 @@ const PrivateUploadPage = () => {
                             }}
                             className="sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer whitespace-nowrap"
                           >
-                            {copySuccess ? '✅ Copied!' : '📋 Copy'}
+                            {copySuccess ? 'Copied!' : 'Copy Link'}
                           </button>
                         </div>
                       </div>

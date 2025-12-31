@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import Busboy from 'busboy';
 import { Readable } from 'stream';
@@ -114,4 +114,27 @@ export async function POST(req) {
 
     Readable.from(req.body).pipe(busboy);
   });
+}
+
+export async function DELETE(req) {
+  const { key } = await req.json();
+
+  if (!key) {
+    return NextResponse.json({ error: 'File key is required' }, { status: 400 });
+  }
+
+  try {
+    console.log('Deleting file with key:', key);
+    const deleteCommand = new DeleteObjectCommand({
+      Bucket: process.env.R2_PRIVATE_BUCKET_NAME,
+      Key: key,
+    });
+
+    await r2Client.send(deleteCommand);
+
+    return NextResponse.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    return new NextResponse('Failed to delete file', { status: 500 });
+  }
 }
