@@ -92,9 +92,8 @@ const UploadPage = () => {
 
         setFileUrls(uploaded);
         setFiles(null);
-        fetchUploadedFiles();
-
         fileInputRef.current.value = '';
+        await fetchUploadedFiles();
       }
     } catch (error) {
       console.error('Error uploading files:', error);
@@ -123,7 +122,7 @@ const UploadPage = () => {
         setDeletingStates((prev) => ({ ...prev, [key]: false }));
         setDeleteTarget('');
         setConfirmOpen(false);
-        fetchUploadedFiles();
+        await fetchUploadedFiles();
       } else {
         toast.error('Failed to delete file. Please try again.');
       }
