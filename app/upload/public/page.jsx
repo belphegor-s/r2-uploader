@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 import { format } from 'date-fns';
@@ -10,9 +10,11 @@ import { MAX_FILE_SIZE } from '@/data/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { formatFileName } from '@/utils/formatFileName';
 import { ChevronRight, FileText } from 'lucide-react';
+import Modal from '@/app/components/Modal';
 
 const UploadPage = () => {
   const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef(null);
   const [files, setFiles] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [fileUrls, setFileUrls] = useState([]);
@@ -27,6 +29,8 @@ const UploadPage = () => {
   );
   const [copiedStates, setCopiedStates] = useState({});
   const [deletingStates, setDeletingStates] = useState({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState('');
 
   const handleCopy = (url, fileId) => {
     navigator.clipboard.writeText(url).then(() => {
@@ -77,16 +81,21 @@ const UploadPage = () => {
         method: 'POST',
         body: formData,
       });
-      const data = await response.json();
 
-      const uploaded = Array.from(files).map((file, i) => ({
-        name: file.name,
-        url: data.urls[i],
-      }));
+      if (response.ok) {
+        const data = await response.json();
 
-      setFileUrls(uploaded);
-      setFiles(null);
-      fetchUploadedFiles();
+        const uploaded = Array.from(files).map((file, i) => ({
+          name: file.name,
+          url: data.urls[i],
+        }));
+
+        setFileUrls(uploaded);
+        setFiles(null);
+        fetchUploadedFiles();
+
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('Error uploading files:', error);
       toast.error('Failed to upload files. Please try again.');
@@ -97,10 +106,6 @@ const UploadPage = () => {
 
   const handleDelete = async (key) => {
     if (deletingStates[key]) return;
-
-    if (!confirm(`Are you sure you want to delete this file?\n\nFile Name: ${formatFileName(key)}\n\nTHIS ACTION IS IRREVERSIBLE!`)) {
-      return;
-    }
 
     setDeletingStates((prev) => ({ ...prev, [key]: true }));
 
@@ -116,6 +121,8 @@ const UploadPage = () => {
       if (response.ok) {
         toast.success('File deleted successfully');
         setDeletingStates((prev) => ({ ...prev, [key]: false }));
+        setDeleteTarget('');
+        setConfirmOpen(false);
         fetchUploadedFiles();
       } else {
         toast.error('Failed to delete file. Please try again.');
@@ -151,7 +158,7 @@ const UploadPage = () => {
             <div className="bg-[#313131] text-[#f5f5f5] rounded-2xl shadow-xl p-6 sm:p-8 mb-8 mt-2">
               <h1 className="text-2xl font-bold text-center text-[#f5f5f5] mb-6">Upload Files (Public)</h1>
               <div className="mb-4">
-                <input type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
+                <input ref={fileInputRef} type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
               </div>
               {files && (
                 <div className="mb-4 bg-[#313131] border border-slate-500 rounded-md p-4">
@@ -183,7 +190,7 @@ const UploadPage = () => {
                   <h2 className="text-xl font-semibold text-[#f5f5f5] mb-2">Recently Uploaded:</h2>
                   <ul className="space-y-3 text-sm">
                     {fileUrls.map((file, idx) => (
-                      <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
+                      <li key={`recent-uploaded-file-${idx}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
                         <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate" title={file.name}>
                           {file.name}
                         </a>
@@ -211,7 +218,7 @@ const UploadPage = () => {
               {sortedFiles.length > 0 ? (
                 <ul className="space-y-3 text-sm">
                   {sortedFiles.map((file, idx) => (
-                    <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
+                    <li key={`uploaded-file-${idx}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[70%] truncate">
                         <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold hover:underline truncate" title={formatFileName(file.key)}>
                           {formatFileName(file.key)}
@@ -227,7 +234,10 @@ const UploadPage = () => {
                         </button>
                         <button
                           className="mt-2 sm:mt-0 ml-2 px-3 py-1 text-xs bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-                          onClick={() => handleDelete(file.key)}
+                          onClick={() => {
+                            setDeleteTarget(file.key);
+                            setConfirmOpen(true);
+                          }}
                           disabled={deletingStates[file.key]}
                         >
                           {deletingStates[file.key] ? 'Deleting...' : 'Delete'}
@@ -241,6 +251,28 @@ const UploadPage = () => {
               )}
             </div>
           </div>
+          <Modal key={`confirm-delete`} open={confirmOpen} onClose={() => setConfirmOpen(false)} closeOnBackdrop={false}>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-white">Delete file?</h3>
+              <p className="text-sm text-gray-400 mt-4 whitespace-pre-line">
+                File Name: {formatFileName(deleteTarget)}
+                {'\n\n'}
+                <span className="font-semibold text-red-400">This action is irreversible.</span>
+              </p>
+              <div className="mt-6 flex justify-end gap-2">
+                <button onClick={() => setConfirmOpen(false)} className="px-4 py-2 bg-[#2e2e2e] hover:bg-[#3a3a3a] rounded-md text-sm">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDelete(deleteTarget)}
+                  className="px-4 py-2 bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:!opacity-70 disabled:!cursor-not-allowed"
+                  disabled={deletingStates[deleteTarget]}
+                >
+                  {deletingStates[deleteTarget] ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
         </div>
       )}
     </div>

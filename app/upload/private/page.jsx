@@ -12,9 +12,11 @@ import { formatFileName } from '@/utils/formatFileName';
 import { AnimatePresence, motion } from 'framer-motion';
 import copyToClipboard from '@/utils/copyToClipboard';
 import { ChevronLeft, FileText } from 'lucide-react';
+import Modal from '@/app/components/Modal';
 
 const PrivateUploadPage = () => {
   const [loading, setLoading] = useState(true);
+  const fileInputRef = useRef(null);
   const [files, setFiles] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [fileUrls, setFileUrls] = useState([]);
@@ -38,6 +40,8 @@ const PrivateUploadPage = () => {
   const [customExpiryUnit, setCustomExpiryUnit] = useState('minutes');
   const [copySuccess, setCopySuccess] = useState(false);
   const [deletingStates, setDeletingStates] = useState({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState('');
 
   const fetchUploadedFiles = async () => {
     try {
@@ -79,15 +83,20 @@ const PrivateUploadPage = () => {
         method: 'POST',
         body: formData,
       });
-      const data = await response.json();
 
-      const uploaded = Array.from(files).map((file, i) => ({
-        name: file.name,
-      }));
+      if (response.ok) {
+        const data = await response.json();
 
-      setFileUrls(uploaded);
-      setFiles(null);
-      fetchUploadedFiles();
+        const uploaded = Array.from(files).map((file, i) => ({
+          name: file.name,
+        }));
+
+        setFileUrls(uploaded);
+        setFiles(null);
+        fetchUploadedFiles();
+
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('Error uploading files:', error);
       toast.error('Failed to upload files. Please try again.');
@@ -182,10 +191,6 @@ const PrivateUploadPage = () => {
   const handleDelete = async (key) => {
     if (deletingStates[key]) return;
 
-    if (!confirm(`Are you sure you want to delete this file?\n\nFile Name: ${formatFileName(key, 'private')}\n\nTHIS ACTION IS IRREVERSIBLE!`)) {
-      return;
-    }
-
     setDeletingStates((prev) => ({ ...prev, [key]: true }));
 
     try {
@@ -200,6 +205,8 @@ const PrivateUploadPage = () => {
       if (response.ok) {
         toast.success('File deleted successfully');
         setDeletingStates((prev) => ({ ...prev, [key]: false }));
+        setDeleteTarget('');
+        setConfirmOpen(false);
         fetchUploadedFiles();
       } else {
         toast.error('Failed to delete file. Please try again.');
@@ -270,7 +277,7 @@ const PrivateUploadPage = () => {
             <div className="bg-[#313131] text-[#f5f5f5] rounded-2xl shadow-xl p-6 sm:p-8 mb-8 mt-2">
               <h1 className="text-2xl font-bold text-center text-[#f5f5f5] mb-6">Upload Files (Private)</h1>
               <div className="mb-4">
-                <input type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
+                <input ref={fileInputRef} type="file" multiple onChange={handleFileChange} className="w-full text-[#f5f5f5] border border-gray-300 rounded-md p-3 cursor-pointer" />
               </div>
               {files && (
                 <div className="mb-4 bg-[#313131] border border-slate-500 rounded-md p-4">
@@ -300,7 +307,7 @@ const PrivateUploadPage = () => {
                   <h2 className="text-xl font-semibold text-[#f5f5f5] mb-2">Recently Uploaded:</h2>
                   <ul className="space-y-3 text-sm">
                     {fileUrls.map((file, idx) => (
-                      <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
+                      <li key={`recent-uploaded-file-${idx}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
                         <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold truncate" title={file.name}>
                           {file.name}
                         </a>
@@ -322,7 +329,7 @@ const PrivateUploadPage = () => {
               {sortedFiles.length > 0 ? (
                 <ul className="space-y-3 text-sm">
                   {sortedFiles.map((file, idx) => (
-                    <li key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
+                    <li key={`uploaded-file-${idx}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-[#1c1c1c] border border-gray-200 rounded-md p-2">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 max-w-full sm:max-w-[60%] truncate">
                         <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 font-semibold truncate" title={formatFileName(file.key, 'private')}>
                           {formatFileName(file.key, 'private')}
@@ -335,7 +342,10 @@ const PrivateUploadPage = () => {
                         </button>
                         <button
                           className="mt-2 sm:mt-0 ml-2 px-3 py-1 text-xs bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-                          onClick={() => handleDelete(file.key)}
+                          onClick={() => {
+                            setDeleteTarget(file.key);
+                            setConfirmOpen(true);
+                          }}
                           disabled={deletingStates[file.key]}
                         >
                           {deletingStates[file.key] ? 'Deleting...' : 'Delete'}
@@ -555,6 +565,213 @@ const PrivateUploadPage = () => {
               </motion.div>
             )}
           </AnimatePresence>
+          <Modal key={`generate-presigned-url`} open={selectedFile} onClose={() => setSelectedFile(null)} closeOnBackdrop={false}>
+            <div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  generatePresignedUrl();
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-[#1e1e1e] p-6 rounded-xl max-w-md w-full shadow-2xl border border-slate-500 text-white space-y-6"
+              >
+                <h3 className="text-xl font-bold border-b border-gray-700 pb-4">Generate Pre-signed URL</h3>
+                <div className="space-y-4">
+                  <div className="p-2">
+                    <label className="block text-sm font-medium mb-1" htmlFor="expiry-select">
+                      Expiry Duration
+                    </label>
+                    <select
+                      id="expiry-select"
+                      value={expiry}
+                      onChange={(e) => setExpiry(e.target.value === 'custom' ? 'custom' : Number(e.target.value))}
+                      className="block w-full p-2 mt-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      required
+                      disabled={generating}
+                    >
+                      <optgroup label="Short">
+                        <option value={30}>30 seconds</option>
+                        <option value={60}>1 minute</option>
+                        <option value={120}>2 minutes</option>
+                        <option value={300}>5 minutes</option>
+                      </optgroup>
+                      <optgroup label="Medium">
+                        <option value={600}>10 minutes</option>
+                        <option value={900}>15 minutes</option>
+                        <option value={1800}>30 minutes</option>
+                      </optgroup>
+                      <optgroup label="Long">
+                        <option value={2700}>45 minutes</option>
+                        <option value={3600}>1 hour</option>
+                      </optgroup>
+                      <optgroup label="Custom">
+                        <option value="custom">Custom Duration</option>
+                      </optgroup>
+                    </select>
+                    {expiry === 'custom' && (
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          max="10080" // 7 days in minutes
+                          value={customExpiry}
+                          onChange={(e) => setCustomExpiry(e.target.value)}
+                          placeholder="Enter duration"
+                          className="flex-1 p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          required
+                          disabled={generating}
+                        />
+                        <select
+                          value={customExpiryUnit}
+                          onChange={(e) => setCustomExpiryUnit(e.target.value)}
+                          className="p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          disabled={generating}
+                        >
+                          <option value="seconds">Seconds</option>
+                          <option value="minutes">Minutes</option>
+                          <option value="hours">Hours</option>
+                          <option value="days">Days</option>
+                        </select>
+                      </div>
+                    )}
+                    {expiry === 'custom' && customExpiry && (
+                      <div className="mt-4 text-xs text-gray-400">
+                        {(() => {
+                          const totalSeconds = calculateExpirySeconds(false); // Don't cap for display validation
+                          const maxExpiry = 604800;
+
+                          if (totalSeconds > maxExpiry) {
+                            return <span className="text-red-400">⚠️ Exceeds maximum limit (7 days). Will be capped at 7 days.</span>;
+                          }
+
+                          const days = Math.floor(totalSeconds / 86400);
+                          const hours = Math.floor((totalSeconds % 86400) / 3600);
+                          const minutes = Math.floor((totalSeconds % 3600) / 60);
+                          const seconds = totalSeconds % 60;
+
+                          let display = [];
+                          if (days > 0) display.push(`${days} day${days !== 1 ? 's' : ''}`);
+                          if (hours > 0) display.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+                          if (minutes > 0) display.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+                          if (seconds > 0) display.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+
+                          return `Duration: ${display.join(' ')}`;
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  <label htmlFor="send-email-checkbox" className={`text-sm cursor-pointer flex items-center p-2 gap-2 w-max select-none ${generating ? 'text-gray-500' : ''}`}>
+                    <input type="checkbox" id="send-email-checkbox" checked={sendEmail} onChange={() => setSendEmail((prev) => !prev)} className="accent-blue-600" disabled={generating} />
+                    Send link via email
+                  </label>
+                  {sendEmail && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1 px-2">Recipient Emails</label>
+                      <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar p-2 mb-2">
+                        {emails.map((emailVal, index) => (
+                          <div key={index} className="flex gap-2" ref={(el) => (emailsRef.current[index] = el)}>
+                            <input
+                              type="email"
+                              placeholder="john.doe@example.com"
+                              value={emailVal}
+                              onChange={(e) => handleEmailChange(index, e.target.value)}
+                              className="flex-1 p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                              required={sendEmail}
+                              disabled={generating}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeEmailField(index)}
+                              className={`text-red-400 hover:text-red-600 text-xs font-bold select-none ${index === 0 ? 'invisible' : ''}`}
+                              disabled={generating}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={addEmailField} className="mt-2 px-2 text-blue-400 hover:text-blue-600 text-sm select-none" disabled={generating}>
+                        + Add another email
+                      </button>
+                    </div>
+                  )}
+                  {generatedLink && (
+                    <div className="mt-4 text-sm text-gray-200 px-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          Generated Link:{' '}
+                          <a href={generatedLink} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+                            {generatedLink}
+                          </a>
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(generatedLink).then(() => {
+                              // toast.success('Link copied to clipboard!');
+                              setCopySuccess(true);
+                              setTimeout(() => {
+                                setCopySuccess(false);
+                              }, 1000);
+                            });
+                          }}
+                          className="sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer whitespace-nowrap"
+                        >
+                          {copySuccess ? 'Copied!' : 'Copy Link'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700">
+                  <button type="button" onClick={() => setSelectedFile(null)} className="px-4 py-2 bg-[#2e2e2e] hover:bg-[#3a3a3a] rounded-md text-sm" disabled={generating}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 transition-all rounded-md text-white cursor-pointer disabled:!opacity-70 disabled:!cursor-not-allowed flex items-center gap-1"
+                    disabled={generating}
+                  >
+                    {generating ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                        </svg>
+                        Generating...
+                      </>
+                    ) : (
+                      'Generate Link'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </Modal>
+          <Modal key={`confirm-delete`} open={confirmOpen} onClose={() => setConfirmOpen(false)} closeOnBackdrop={false}>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-white">Delete file?</h3>
+              <p className="text-sm text-gray-400 mt-4 whitespace-pre-line">
+                File Name: {formatFileName(deleteTarget)}
+                {'\n\n'}
+                <span className="font-semibold text-red-400">This action is irreversible.</span>
+              </p>
+              <div className="mt-6 flex justify-end gap-2">
+                <button onClick={() => setConfirmOpen(false)} className="px-4 py-2 bg-[#2e2e2e] hover:bg-[#3a3a3a] rounded-md text-sm">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDelete(deleteTarget)}
+                  className="px-4 py-2 bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:!opacity-70 disabled:!cursor-not-allowed"
+                  disabled={deletingStates[deleteTarget]}
+                >
+                  {deletingStates[deleteTarget] ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </Modal>
         </div>
       )}
     </div>
