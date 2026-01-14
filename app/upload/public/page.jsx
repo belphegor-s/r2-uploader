@@ -178,11 +178,7 @@ const UploadPage = () => {
                   </ul>
                 </div>
               )}
-              <button
-                onClick={handleUpload}
-                disabled={uploading || !files}
-                className="w-full bg-blue-500 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition disabled:opacity-50 disabled:bg-blue-500 cursor-pointer"
-              >
+              <button onClick={handleUpload} disabled={uploading || !files} className="btn-primary">
                 {uploading ? 'Uploading...' : 'Upload Files'}
               </button>
               {fileUrls.length > 0 && (
@@ -214,7 +210,6 @@ const UploadPage = () => {
                   Sort by: {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
                 </button>
               </div>
-
               {sortedFiles.length > 0 ? (
                 <ul className="space-y-3 text-sm">
                   {sortedFiles.map((file, idx) => (
@@ -226,14 +221,11 @@ const UploadPage = () => {
                         <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
                       </div>
                       <div>
-                        <button
-                          onClick={() => handleCopy(file.url, `uploaded-${idx}`)}
-                          className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer"
-                        >
+                        <button onClick={() => handleCopy(file.url, `uploaded-${idx}`)} className="mt-2 sm:mt-0 btn-neutral-small">
                           {copiedStates[`uploaded-${idx}`] ? 'Copied!' : 'Copy Link'}
                         </button>
                         <button
-                          className="mt-2 sm:mt-0 ml-2 px-3 py-1 text-xs bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                          className="mt-2 sm:mt-0 ml-2 btn-danger-variant-small"
                           onClick={() => {
                             setDeleteTarget(file.key);
                             setConfirmOpen(true);
@@ -260,14 +252,10 @@ const UploadPage = () => {
                 <span className="font-semibold text-red-400">This action is irreversible.</span>
               </p>
               <div className="mt-6 flex justify-end gap-2">
-                <button onClick={() => setConfirmOpen(false)} className="px-4 py-2 bg-[#2e2e2e] hover:bg-[#3a3a3a] rounded-md text-sm">
+                <button onClick={() => setConfirmOpen(false)} className="btn-neutral">
                   Cancel
                 </button>
-                <button
-                  onClick={() => handleDelete(deleteTarget)}
-                  className="px-4 py-2 bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:!opacity-70 disabled:!cursor-not-allowed"
-                  disabled={deletingStates[deleteTarget]}
-                >
+                <button onClick={() => handleDelete(deleteTarget)} className="btn-danger-variant" disabled={deletingStates[deleteTarget]}>
                   {deletingStates[deleteTarget] ? 'Deleting...' : 'Delete'}
                 </button>
               </div>

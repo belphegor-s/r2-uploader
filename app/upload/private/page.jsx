@@ -295,11 +295,7 @@ const PrivateUploadPage = () => {
                   ))}
                 </div>
               )}
-              <button
-                onClick={handleUpload}
-                disabled={uploading || !files}
-                className="w-full bg-blue-500 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition disabled:opacity-50 disabled:bg-blue-500 cursor-pointer"
-              >
+              <button onClick={handleUpload} disabled={uploading || !files} className="btn-primary">
                 {uploading ? 'Uploading...' : 'Upload Files'}
               </button>
               {fileUrls.length > 0 && (
@@ -337,11 +333,11 @@ const PrivateUploadPage = () => {
                         <span className="text-gray-400 text-xs mt-1 sm:mt-0">{format(new Date(file.lastModified), 'PPpp')}</span>
                       </div>
                       <div>
-                        <button onClick={() => openPresignModal(file)} className="mt-2 sm:mt-0 px-3 py-1 text-xs bg-[#313131] hover:bg-[#434343] transition-all rounded-md text-white cursor-pointer">
+                        <button onClick={() => openPresignModal(file)} className="mt-2 sm:mt-0 btn-neutral-small">
                           Generate Pre-signed URL
                         </button>
                         <button
-                          className="mt-2 sm:mt-0 ml-2 px-3 py-1 text-xs bg-[#7a1f1f] hover:bg-[#b22222] transition-all rounded-md text-white cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                          className="mt-2 sm:mt-0 ml-2 btn-danger-variant-small"
                           onClick={() => {
                             setDeleteTarget(file.key);
                             setConfirmOpen(true);
@@ -394,7 +390,7 @@ const PrivateUploadPage = () => {
                         id="expiry-select"
                         value={expiry}
                         onChange={(e) => setExpiry(e.target.value === 'custom' ? 'custom' : Number(e.target.value))}
-                        className="block w-full p-2 mt-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        className="custom-input"
                         required
                         disabled={generating}
                       >
@@ -426,16 +422,11 @@ const PrivateUploadPage = () => {
                             value={customExpiry}
                             onChange={(e) => setCustomExpiry(e.target.value)}
                             placeholder="Enter duration"
-                            className="flex-1 p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                            className="flex-1 custom-input"
                             required
                             disabled={generating}
                           />
-                          <select
-                            value={customExpiryUnit}
-                            onChange={(e) => setCustomExpiryUnit(e.target.value)}
-                            className="p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                            disabled={generating}
-                          >
+                          <select value={customExpiryUnit} onChange={(e) => setCustomExpiryUnit(e.target.value)} className="custom-input" disabled={generating}>
                             <option value="seconds">Seconds</option>
                             <option value="minutes">Minutes</option>
                             <option value="hours">Hours</option>
@@ -485,7 +476,7 @@ const PrivateUploadPage = () => {
                                 placeholder="john.doe@example.com"
                                 value={emailVal}
                                 onChange={(e) => handleEmailChange(index, e.target.value)}
-                                className="flex-1 p-2 rounded bg-[#2a2a2a] border border-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                className="flex-1 custom-input"
                                 required={sendEmail}
                                 disabled={generating}
                               />
