@@ -89,6 +89,7 @@ const PrivateUploadPage = () => {
 
         const uploaded = Array.from(files).map((file, i) => ({
           name: file.name,
+          key: data.files[i].key,
         }));
 
         setFileUrls(uploaded);
@@ -206,6 +207,7 @@ const PrivateUploadPage = () => {
         setDeletingStates((prev) => ({ ...prev, [key]: false }));
         setDeleteTarget('');
         setConfirmOpen(false);
+        setFileUrls((prev) => prev.filter((file) => file.key !== key));
         await fetchUploadedFiles();
       } else {
         toast.error('Failed to delete file. Please try again.');

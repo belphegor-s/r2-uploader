@@ -59,7 +59,7 @@ export async function POST(req) {
   const contentType = req.headers.get('content-type') || '';
   const busboy = Busboy({ headers: { 'content-type': contentType } });
 
-  const fileUrls = [];
+  const filesData = [];
   const uploadPromises = [];
 
   return new Promise((resolve, reject) => {
@@ -100,7 +100,7 @@ export async function POST(req) {
 
         const uploadPromise = r2Client.send(command).then(() => {
           const publicUrl = `https://storage.pixly.sh/${key}`;
-          fileUrls.push(publicUrl);
+          filesData.push({ key, url: publicUrl });
         });
 
         uploadPromises.push(uploadPromise);
@@ -122,7 +122,7 @@ export async function POST(req) {
       try {
         await Promise.all(uploadPromises);
         console.log('All uploads complete.');
-        resolve(NextResponse.json({ urls: fileUrls }));
+        resolve(NextResponse.json({ message: 'Upload complete', files: filesData }));
       } catch (err) {
         console.error('Error awaiting uploads:', err);
         reject(new NextResponse('Upload processing failed', { status: 500 }));

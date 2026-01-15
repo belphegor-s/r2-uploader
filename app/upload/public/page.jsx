@@ -87,7 +87,8 @@ const UploadPage = () => {
 
         const uploaded = Array.from(files).map((file, i) => ({
           name: file.name,
-          url: data.urls[i],
+          key: data.files[i].key,
+          url: data.files[i].url,
         }));
 
         setFileUrls(uploaded);
@@ -122,6 +123,7 @@ const UploadPage = () => {
         setDeletingStates((prev) => ({ ...prev, [key]: false }));
         setDeleteTarget('');
         setConfirmOpen(false);
+        setFileUrls((prev) => prev.filter((file) => file.key !== key));
         await fetchUploadedFiles();
       } else {
         toast.error('Failed to delete file. Please try again.');
