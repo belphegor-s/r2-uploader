@@ -557,7 +557,7 @@ const PrivateUploadPage = () => {
               </motion.div>
             )}
           </AnimatePresence>
-          <Modal key={`generate-presigned-url`} open={selectedFile} onClose={() => setSelectedFile(null)} closeOnBackdrop={false}>
+          <Modal key={`generate-presigned-url`} open={selectedFile} onClose={() => setSelectedFile(null)} closeOnBackdrop={generating ? false : true}>
             <div>
               <form
                 onSubmit={(e) => {
@@ -742,7 +742,7 @@ const PrivateUploadPage = () => {
               </form>
             </div>
           </Modal>
-          <Modal key={`confirm-delete`} open={confirmOpen} onClose={() => setConfirmOpen(false)} closeOnBackdrop={false}>
+          <Modal key={`confirm-delete`} open={confirmOpen} onClose={() => setConfirmOpen(false)} closeOnBackdrop={deletingStates[deleteTarget] ? false : true}>
             <div className="p-6">
               <h3 className="text-lg font-semibold text-white">Delete file?</h3>
               <p className="text-sm text-gray-400 mt-4 whitespace-pre-line">
