@@ -60,12 +60,12 @@ export const driveApi = {
 // Triggers a browser download of a POST stream by submitting an invisible form? No — fetch + blob.
 // For potentially huge zips, use anchor + form submission? We use fetch + reading via response stream is heavy.
 // Simpler approach: open a hidden iframe with a temporary form POST.
-export async function downloadZip(scope, payload, filename = 'download.zip') {
-  // Use fetch + blob for moderate sizes. Browser will handle streaming through anchor + URL.createObjectURL.
+export async function downloadZip(scope, payload, filename = 'download.zip', signal) {
   const res = await fetch(`/api/drive/${scope}/zip`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, filename }),
+    signal,
   });
   if (!res.ok) throw new Error(`Zip failed: ${res.status}`);
   const blob = await res.blob();

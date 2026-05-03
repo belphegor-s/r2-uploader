@@ -1,12 +1,13 @@
 'use client';
 
 import { Check } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { FolderIcon, FileTypeIcon } from './fileIcons';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { categoryOf } from '@/app/lib/fileTypes';
 import useLongPress from '@/app/hooks/useLongPress';
 
-function GridItem({ id, item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu, thumbUrl }) {
+function GridItem({ id, item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu, thumbUrl, index }) {
   const longPress = useLongPress((coords) => {
     onContextMenu({ clientX: coords.x, clientY: coords.y, preventDefault() {}, stopPropagation() {} });
   });
@@ -14,8 +15,15 @@ function GridItem({ id, item, isFolder, isSelected, onClick, onDoubleClick, onCo
   const showThumb = !isFolder && cat === 'image' && thumbUrl;
 
   return (
-    <div
-      className={`group relative rounded-xl border transition cursor-pointer overflow-hidden select-none ${
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.22, delay: Math.min(index * 0.015, 0.25), ease: 'easeOut' }}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.985 }}
+      className={`group relative rounded-xl border cursor-pointer overflow-hidden select-none transition-colors ${
         isSelected
           ? 'border-blue-500 bg-blue-600/10 ring-1 ring-blue-500/40'
           : 'border-gray-800 bg-[#1c1c1c] hover:border-gray-600 hover:bg-[#222]'
@@ -48,11 +56,16 @@ function GridItem({ id, item, isFolder, isSelected, onClick, onDoubleClick, onCo
       </div>
 
       {isSelected && (
-        <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-md">
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22 }}
+          className="absolute top-2 left-2 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-md"
+        >
           <Check size={12} strokeWidth={3} />
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -70,6 +83,7 @@ export default function FileGrid({ folders, files, selection, onItemClick, onIte
           <GridItem
             key={id}
             id={id}
+            index={i}
             item={f}
             isFolder
             isSelected={selection.isSelected(id)}
@@ -86,6 +100,7 @@ export default function FileGrid({ folders, files, selection, onItemClick, onIte
           <GridItem
             key={id}
             id={id}
+            index={fullIdx}
             item={f}
             isFolder={false}
             isSelected={selection.isSelected(id)}

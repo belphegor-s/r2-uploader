@@ -153,10 +153,12 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
               key={r.key}
               data-idx={i}
               type="button"
-              onMouseEnter={() => setHighlight(i)}
+              tabIndex={-1}
+              onMouseMove={() => { if (highlight !== i) setHighlight(i); }}
+              onMouseDown={(e) => e.preventDefault() /* keep focus in input */}
               onClick={() => { onJump(r); setOpen(false); }}
-              className={`w-full text-left flex items-center gap-2 px-3 py-2 border-b border-gray-800 last:border-b-0 ${
-                highlight === i ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]'
+              className={`w-full text-left flex items-center gap-2 px-3 py-2 border-b border-gray-800 last:border-b-0 transition ${
+                highlight === i ? 'bg-[#2a2a2a]' : ''
               }`}
             >
               <FileTypeIcon name={r.name} mime={r.mime} size={16} />

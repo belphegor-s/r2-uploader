@@ -2,16 +2,22 @@
 
 import { format } from 'date-fns';
 import { Check } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { FolderIcon, FileTypeIcon } from './fileIcons';
 import { formatFileSize } from '@/utils/formatFileSize';
 import useLongPress from '@/app/hooks/useLongPress';
 
-function Row({ item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu }) {
+function Row({ item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu, index = 0 }) {
   const longPress = useLongPress((coords) => {
     onContextMenu({ clientX: coords.x, clientY: coords.y, preventDefault() {}, stopPropagation() {} });
   });
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18, delay: Math.min(index * 0.012, 0.2), ease: 'easeOut' }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
@@ -19,7 +25,7 @@ function Row({ item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu
       onTouchEnd={longPress.onTouchEnd}
       onTouchMove={longPress.onTouchMove}
       onTouchCancel={longPress.onTouchCancel}
-      className={`grid grid-cols-[24px_1fr_auto_auto] items-center gap-3 px-3 py-2 cursor-pointer border-b border-gray-800 last:border-0 select-none transition ${
+      className={`grid grid-cols-[24px_1fr_auto_auto] items-center gap-3 px-3 py-2 cursor-pointer border-b border-gray-800 last:border-0 select-none transition-colors ${
         isSelected ? 'bg-blue-600/10' : 'hover:bg-[#222]'
       }`}
     >
@@ -40,7 +46,7 @@ function Row({ item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu
       <span className="text-xs text-gray-500 whitespace-nowrap hidden sm:inline">
         {item.lastModified ? format(new Date(item.lastModified), 'PP p') : ''}
       </span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -63,6 +69,7 @@ export default function FileList({ folders, files, selection, onItemClick, onIte
         return (
           <Row
             key={id}
+            index={i}
             item={f}
             isFolder
             isSelected={selection.isSelected(id)}
@@ -78,6 +85,7 @@ export default function FileList({ folders, files, selection, onItemClick, onIte
         return (
           <Row
             key={id}
+            index={fullIdx}
             item={f}
             isFolder={false}
             isSelected={selection.isSelected(id)}

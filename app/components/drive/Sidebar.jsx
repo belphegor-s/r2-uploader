@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight, ChevronDown, HardDrive } from 'lucide-react';
+import { ChevronRight, HardDrive } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { driveApi } from '@/app/lib/driveClient';
 import { FolderIcon, FileTypeIcon } from './fileIcons';
 
@@ -71,7 +72,9 @@ function TreeNode({ scope, node, currentPrefix, onNavigate, onFileOpen, depth = 
           className="p-1 text-gray-400 hover:text-white"
           aria-label={open ? 'Collapse' : 'Expand'}
         >
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <motion.span animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.15 }} className="inline-flex">
+            <ChevronRight size={14} />
+          </motion.span>
         </button>
         <button
           type="button"
@@ -82,29 +85,38 @@ function TreeNode({ scope, node, currentPrefix, onNavigate, onFileOpen, depth = 
           <span className="truncate">{node.name}</span>
         </button>
       </div>
-      {open && (
-        <div>
-          {loading && <div className="text-xs text-gray-500 pl-8 py-1">Loading…</div>}
-          {!loading && data && data.folders.length === 0 && data.files.length === 0 && (
-            <div className="text-xs text-gray-600 pl-8 py-1 italic">empty</div>
-          )}
-          {data?.folders.map((c) => (
-            <TreeNode
-              key={c.prefix}
-              scope={scope}
-              node={c}
-              currentPrefix={currentPrefix}
-              onNavigate={onNavigate}
-              onFileOpen={onFileOpen}
-              depth={depth + 1}
-              refreshKey={refreshKey}
-            />
-          ))}
-          {data?.files.map((f) => (
-            <FileLeaf key={f.key} file={f} depth={depth + 1} onClick={onFileOpen} currentPrefix={currentPrefix} />
-          ))}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="children"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            {loading && <div className="text-xs text-gray-500 pl-8 py-1">Loading…</div>}
+            {!loading && data && data.folders.length === 0 && data.files.length === 0 && (
+              <div className="text-xs text-gray-600 pl-8 py-1 italic">empty</div>
+            )}
+            {data?.folders.map((c) => (
+              <TreeNode
+                key={c.prefix}
+                scope={scope}
+                node={c}
+                currentPrefix={currentPrefix}
+                onNavigate={onNavigate}
+                onFileOpen={onFileOpen}
+                depth={depth + 1}
+                refreshKey={refreshKey}
+              />
+            ))}
+            {data?.files.map((f) => (
+              <FileLeaf key={f.key} file={f} depth={depth + 1} onClick={onFileOpen} currentPrefix={currentPrefix} />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

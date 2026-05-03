@@ -28,7 +28,7 @@ import useSelection from '@/app/hooks/useSelection';
 import useContextMenu from '@/app/hooks/useContextMenu';
 import useKeyboardShortcuts from '@/app/hooks/useKeyboardShortcuts';
 import { driveApi, downloadZip } from '@/app/lib/driveClient';
-import { uploadEntries, fileListToEntries, readDataTransferItems } from '@/app/lib/uploadClient';
+import { uploadEntries, fileListToEntries, snapshotDataTransferEntries, walkSnapshot } from '@/app/lib/uploadClient';
 import { categoryOf } from '@/app/lib/fileTypes';
 import copyToClipboard from '@/utils/copyToClipboard';
 
@@ -332,15 +332,19 @@ export default function DrivePage({ scope }) {
       e.dataTransfer.dropEffect = 'copy';
     }
   };
-  const onDrop = async (e) => {
+  const onDrop = (e) => {
     if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     setDropOver(false);
     dragCounter.current = 0;
+    // Snapshot synchronously while DataTransferItemList is still valid,
+    // then walk + upload async.
     const items = e.dataTransfer.items;
     if (items?.length) {
-      const entries = await readDataTransferItems(items);
-      handleUpload(entries, `Uploading ${entries.length} item${entries.length > 1 ? 's' : ''}`);
+      const snap = snapshotDataTransferEntries(items);
+      walkSnapshot(snap).then((entries) => {
+        if (entries.length) handleUpload(entries, `Uploading ${entries.length} item${entries.length > 1 ? 's' : ''}`);
+      });
     } else if (e.dataTransfer.files?.length) {
       onUploadFiles(e.dataTransfer.files);
     }

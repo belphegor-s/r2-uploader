@@ -1,7 +1,10 @@
 'use client';
 
 import { useRef } from 'react';
+import { motion } from 'framer-motion';
 import { FolderPlus, Upload, FolderUp, LayoutGrid, List, ArrowUpDown, Menu, Search } from 'lucide-react';
+
+const tap = { whileTap: { scale: 0.96 }, whileHover: { y: -1 } };
 
 export default function Toolbar({
   view,
@@ -19,17 +22,17 @@ export default function Toolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button onClick={onToggleSidebar} className="md:hidden p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a]" aria-label="Toggle sidebar">
+      <motion.button {...tap} onClick={onToggleSidebar} className="md:hidden p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a]" aria-label="Toggle sidebar">
         <Menu size={18} />
-      </button>
+      </motion.button>
 
-      <button onClick={onNewFolder} className="flex items-center gap-2 btn-neutral">
+      <motion.button {...tap} onClick={onNewFolder} className="flex items-center gap-2 btn-neutral">
         <FolderPlus size={16} /> <span className="hidden sm:inline">New folder</span>
-      </button>
+      </motion.button>
 
-      <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 btn-neutral">
+      <motion.button {...tap} onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 btn-neutral">
         <Upload size={16} /> <span className="hidden sm:inline">Upload files</span>
-      </button>
+      </motion.button>
       <input
         ref={fileInputRef}
         type="file"
@@ -41,9 +44,9 @@ export default function Toolbar({
         }}
       />
 
-      <button onClick={() => folderInputRef.current?.click()} className="flex items-center gap-2 btn-neutral">
+      <motion.button {...tap} onClick={() => folderInputRef.current?.click()} className="flex items-center gap-2 btn-neutral">
         <FolderUp size={16} /> <span className="hidden sm:inline">Upload folder</span>
-      </button>
+      </motion.button>
       <input
         ref={folderInputRef}
         type="file"
@@ -58,25 +61,28 @@ export default function Toolbar({
       />
 
       <div className="ml-auto flex items-center gap-2">
-        <button onClick={onOpenSearch} className="flex items-center gap-2 btn-neutral md:hidden">
+        <motion.button {...tap} onClick={onOpenSearch} className="flex items-center gap-2 btn-neutral md:hidden">
           <Search size={16} />
-        </button>
+        </motion.button>
 
-        <div className="hidden sm:flex items-center bg-[#2a2a2a] rounded-md p-0.5">
-          <button
-            onClick={() => setView('grid')}
-            className={`p-1.5 rounded ${view === 'grid' ? 'bg-[#3a3a3a] text-white' : 'text-gray-400 hover:text-white'}`}
-            aria-label="Grid view"
-          >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            onClick={() => setView('list')}
-            className={`p-1.5 rounded ${view === 'list' ? 'bg-[#3a3a3a] text-white' : 'text-gray-400 hover:text-white'}`}
-            aria-label="List view"
-          >
-            <List size={16} />
-          </button>
+        <div className="hidden sm:flex items-center bg-[#2a2a2a] rounded-md p-0.5 relative">
+          {['grid', 'list'].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setView(mode)}
+              className={`relative z-10 p-1.5 rounded transition-colors ${view === mode ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+              aria-label={`${mode} view`}
+            >
+              {mode === 'grid' ? <LayoutGrid size={16} /> : <List size={16} />}
+              {view === mode && (
+                <motion.span
+                  layoutId="viewModeIndicator"
+                  className="absolute inset-0 bg-[#3a3a3a] rounded -z-0"
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
         </div>
 
         <div className="relative">
