@@ -80,6 +80,7 @@ export default function DrivePage({ scope }) {
   const [searchOverlay, setSearchOverlay] = useState(false);
   const [busy, setBusy] = useState(false);
   const dragCounter = useRef(0);
+  const batchControllers = useRef(new Map());
   const [dropOver, setDropOver] = useState(false);
   const [activeSearch, setActiveSearch] = useState(null); // { q, results, truncated }
 
@@ -216,13 +217,18 @@ export default function DrivePage({ scope }) {
   }, []);
 
   const zipFolder = useCallback(async (folder) => {
-    const id = `zip-${Date.now()}`;
+    const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const controller = new AbortController();
+    batchControllers.current.set(id, controller);
     setBatches((b) => [...b, { id, label: `Zipping ${folder.name}`, status: 'uploading', percent: 0 }]);
     try {
-      await downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`);
+      await downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`, controller.signal);
       setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'done', percent: 100 } : x));
     } catch (err) {
-      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'error', message: err.message } : x));
+      const cancelled = err?.name === 'AbortError';
+      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x));
+    } finally {
+      batchControllers.current.delete(id);
     }
   }, [scope]);
 
@@ -232,13 +238,18 @@ export default function DrivePage({ scope }) {
     if (fileItems.length === 0 && folderItems.length === 0) return;
 
     if (folderItems.length === 0) {
-      const id = `zip-${Date.now()}`;
+      const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const controller = new AbortController();
+      batchControllers.current.set(id, controller);
       setBatches((b) => [...b, { id, label: `Zipping ${fileItems.length} files`, status: 'uploading' }]);
       try {
-        await downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`);
+        await downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`, controller.signal);
         setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'done' } : x));
       } catch (err) {
-        setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'error', message: err.message } : x));
+        const cancelled = err?.name === 'AbortError';
+        setBatches((b) => b.map((x) => x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x));
+      } finally {
+        batchControllers.current.delete(id);
       }
     } else {
       // Mixed selection: zip each folder individually + one for the loose files.
@@ -283,13 +294,16 @@ export default function DrivePage({ scope }) {
   // ─── Upload handling ───────────────────────────────────────────────────
   const handleUpload = useCallback(async (entries, label) => {
     if (!entries.length) return;
-    const id = `up-${Date.now()}`;
+    const id = `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const controller = new AbortController();
+    batchControllers.current.set(id, controller);
     setBatches((b) => [...b, { id, label, status: 'uploading', percent: 0 }]);
     try {
       await uploadEntries({
         scope,
         prefix,
         entries,
+        signal: controller.signal,
         onProgress: ({ percent }) => {
           setBatches((b) => b.map((x) => x.id === id ? { ...x, percent } : x));
         },
@@ -297,10 +311,19 @@ export default function DrivePage({ scope }) {
       setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'done', percent: 100 } : x));
       await refreshAll();
     } catch (err) {
-      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'error', message: err.message } : x));
-      toast.error(err.message || 'Upload failed');
+      const cancelled = err?.name === 'AbortError';
+      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x));
+      if (!cancelled) toast.error(err.message || 'Upload failed');
+      else toast('Upload cancelled');
+    } finally {
+      batchControllers.current.delete(id);
     }
   }, [scope, prefix, refreshAll]);
+
+  const cancelBatch = useCallback((id) => {
+    const c = batchControllers.current.get(id);
+    if (c) c.abort();
+  }, []);
 
   const onUploadFiles = useCallback((fileList) => {
     const entries = Array.from(fileList).map((file) => ({ file, relativePath: file.name }));
@@ -689,6 +712,7 @@ export default function DrivePage({ scope }) {
       <UploadProgress
         batches={batches}
         onDismiss={(id) => setBatches((b) => b.filter((x) => x.id !== id))}
+        onCancel={cancelBatch}
         lift={selection.size > 0}
       />
     </div>
