@@ -122,17 +122,6 @@ export default function SearchBar({ scope, onJump, onSubmit, onClearActive, acti
     }
   }, [onJump, onClearActive, submitFilter]);
 
-  // Document-level capture listener as failsafe — fires only when the input is focused.
-  useEffect(() => {
-    const onDocKey = (e) => {
-      if (document.activeElement !== inputRef.current) return;
-      if (!['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) return;
-      handleKey(e);
-    };
-    document.addEventListener('keydown', onDocKey, true);
-    return () => document.removeEventListener('keydown', onDocKey, true);
-  }, [handleKey]);
-
   const clear = () => {
     setQ('');
     setResults([]);
