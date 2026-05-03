@@ -86,8 +86,8 @@ export default function Toolbar({
               const [by, dir] = e.target.value.split(':');
               setSort({ by, dir });
             }}
-            className="custom-input pr-8 text-xs sm:text-sm"
-            style={{ width: 'auto', minWidth: 140 }}
+            className="custom-input pl-3 pr-9 text-xs sm:text-sm appearance-none"
+            style={{ width: 'auto', minWidth: 180 }}
           >
             <option value="modified:desc">Newest first</option>
             <option value="modified:asc">Oldest first</option>
@@ -96,7 +96,7 @@ export default function Toolbar({
             <option value="size:desc">Size large → small</option>
             <option value="size:asc">Size small → large</option>
           </select>
-          <ArrowUpDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <ArrowUpDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
       </div>
     </div>

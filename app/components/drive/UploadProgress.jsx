@@ -3,9 +3,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
-export default function UploadProgress({ batches, onDismiss }) {
+export default function UploadProgress({ batches, onDismiss, lift = false }) {
   return (
-    <div className="fixed bottom-4 right-4 z-30 space-y-2 w-[min(360px,calc(100%-2rem))]">
+    <div
+      className="fixed right-4 z-50 space-y-2 w-[min(360px,calc(100%-2rem))] transition-all"
+      style={{ bottom: lift ? 92 : 16 }}
+    >
       <AnimatePresence>
         {batches.map((b) => (
           <motion.div

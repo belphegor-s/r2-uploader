@@ -81,6 +81,7 @@ export default function DrivePage({ scope }) {
   const [busy, setBusy] = useState(false);
   const dragCounter = useRef(0);
   const [dropOver, setDropOver] = useState(false);
+  const [activeSearch, setActiveSearch] = useState(null); // { q, results, truncated }
 
   // Persist view preference
   useEffect(() => {
@@ -91,10 +92,17 @@ export default function DrivePage({ scope }) {
     if (typeof window !== 'undefined') window.localStorage.setItem('drive.view', view);
   }, [view]);
 
-  // Reset selection on path change
-  useEffect(() => { selection.clear(); }, [prefix, scope]); // eslint-disable-line
+  // Reset selection + clear search on path change
+  useEffect(() => { selection.clear(); setActiveSearch(null); }, [prefix, scope]); // eslint-disable-line
 
-  const sorted = useMemo(() => sortItems(data, sort), [data, sort]);
+  const sorted = useMemo(() => {
+    if (activeSearch) {
+      // In search mode, only files from results.
+      const fakeData = { folders: [], files: activeSearch.results };
+      return sortItems(fakeData, sort);
+    }
+    return sortItems(data, sort);
+  }, [data, sort, activeSearch]);
 
   const navigate = useCallback((newPrefix) => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -175,7 +183,12 @@ export default function DrivePage({ scope }) {
   const openPreview = useCallback((file) => {
     const idx = previewableFiles.findIndex((f) => f.key === file.key);
     if (idx === -1) {
-      // Not previewable — just open directly via signed URL
+      // File is in another folder OR non-previewable. If previewable mime, open in standalone single-file preview.
+      const cat = categoryOf(file.mime || '', file.name);
+      if (['image','video','audio','pdf','text'].includes(cat)) {
+        setPreviewState({ startIndex: 0, files: [file] });
+        return;
+      }
       driveApi.previewUrl(scope, file.key).then(({ url }) => window.open(url, '_blank'));
       return;
     }
@@ -354,7 +367,7 @@ export default function DrivePage({ scope }) {
       askDelete(items);
     },
     onSearch: () => setSearchOverlay(true),
-    onEsc: () => { selection.clear(); ctxMenu.close(); },
+    onEsc: () => { selection.clear(); ctxMenu.close(); setActiveSearch(null); },
     enabled: !previewState && !confirm && !renameTarget && !moveDialog && !shareKey && !newFolderOpen,
   });
 
@@ -480,6 +493,7 @@ export default function DrivePage({ scope }) {
             scope={scope}
             currentPrefix={prefix}
             onNavigate={(p) => { navigate(p); }}
+            onFileOpen={(file) => openPreview(file)}
             refreshKey={treeRefreshKey}
           />
         </div>
@@ -493,6 +507,7 @@ export default function DrivePage({ scope }) {
                 scope={scope}
                 currentPrefix={prefix}
                 onNavigate={(p) => { navigate(p); setSidebarOpen(false); }}
+                onFileOpen={(file) => { openPreview(file); setSidebarOpen(false); }}
                 refreshKey={treeRefreshKey}
                 onClose={() => setSidebarOpen(false)}
               />
@@ -504,7 +519,14 @@ export default function DrivePage({ scope }) {
         <main className="flex-1 min-w-0 flex flex-col">
           <div className="px-3 sm:px-6 pt-4 pb-2 flex flex-col gap-3 border-b border-gray-800 bg-[#272727] sticky top-0 z-20">
             <div className="hidden md:flex items-center gap-3">
-              <SearchBar scope={scope} prefix={prefix} onJump={(r) => navigate(r.folder)} />
+              <SearchBar
+                scope={scope}
+                prefix={prefix}
+                onJump={(r) => navigate(r.folder)}
+                onSubmit={({ q, results, truncated }) => { setActiveSearch({ q, results, truncated }); selection.clear(); }}
+                onClearActive={() => setActiveSearch(null)}
+                activeQuery={activeSearch?.q}
+              />
               <div className="flex-1" />
             </div>
             <Toolbar
@@ -518,14 +540,32 @@ export default function DrivePage({ scope }) {
               onOpenSearch={() => setSearchOverlay(true)}
               onToggleSidebar={() => setSidebarOpen(true)}
             />
-            <Breadcrumbs scope={scope} prefix={prefix} onNavigate={navigate} />
+            {activeSearch ? (
+              <div className="flex items-center gap-2 text-sm bg-blue-600/10 border border-blue-600/30 text-blue-200 rounded-md px-3 py-2">
+                <span className="font-medium truncate">
+                  Results for “{activeSearch.q}”: {sorted.files.length}{activeSearch.truncated ? '+' : ''}
+                </span>
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => setActiveSearch(null)}
+                  className="text-xs px-2 py-1 rounded bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-200"
+                >
+                  Clear search
+                </button>
+              </div>
+            ) : (
+              <Breadcrumbs scope={scope} prefix={prefix} onNavigate={navigate} />
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-6 pb-32">
             {loading ? (
               <Loader />
             ) : sorted.folders.length === 0 && sorted.files.length === 0 ? (
-              <EmptyState onUploadFiles={onUploadFiles} />
+              activeSearch
+                ? <SearchEmpty q={activeSearch.q} onClear={() => setActiveSearch(null)} />
+                : <EmptyState onUploadFiles={onUploadFiles} />
             ) : view === 'grid' ? (
               <FileGrid
                 folders={sorted.folders}
@@ -562,7 +602,15 @@ export default function DrivePage({ scope }) {
       {searchOverlay && (
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col p-4 md:hidden" onClick={() => setSearchOverlay(false)}>
           <div onClick={(e) => e.stopPropagation()} className="bg-[#1c1c1c] rounded-xl p-3 border border-gray-800">
-            <SearchBar scope={scope} prefix={prefix} onJump={(r) => { navigate(r.folder); setSearchOverlay(false); }} autoFocus />
+            <SearchBar
+              scope={scope}
+              prefix={prefix}
+              onJump={(r) => { navigate(r.folder); setSearchOverlay(false); }}
+              onSubmit={({ q, results, truncated }) => { setActiveSearch({ q, results, truncated }); selection.clear(); setSearchOverlay(false); }}
+              onClearActive={() => setActiveSearch(null)}
+              activeQuery={activeSearch?.q}
+              autoFocus
+            />
             <button onClick={() => setSearchOverlay(false)} className="mt-2 w-full btn-neutral">Close</button>
           </div>
         </div>
@@ -571,7 +619,9 @@ export default function DrivePage({ scope }) {
       {/* Selection bar */}
       <SelectionBar
         count={selection.size}
+        totalCount={allCurrentIds.length}
         onClear={selection.clear}
+        onSelectAll={() => selection.setAll(allCurrentIds)}
         busy={busy}
         onDelete={() => askDelete(selectionItems())}
         onMove={() => setMoveDialog({ mode: 'move', items: selectionItems() })}
@@ -626,7 +676,7 @@ export default function DrivePage({ scope }) {
       {previewState && (
         <PreviewModal
           scope={scope}
-          files={previewableFiles}
+          files={previewState.files || previewableFiles}
           startIndex={previewState.startIndex}
           onClose={() => setPreviewState(null)}
         />
@@ -635,6 +685,7 @@ export default function DrivePage({ scope }) {
       <UploadProgress
         batches={batches}
         onDismiss={(id) => setBatches((b) => b.filter((x) => x.id !== id))}
+        lift={selection.size > 0}
       />
     </div>
   );
@@ -648,6 +699,16 @@ function EmptyState({ onUploadFiles }) {
       </div>
       <p className="text-sm font-medium">This folder is empty</p>
       <p className="text-xs mt-1 max-w-xs">Drag and drop files here, or use the upload buttons above.</p>
+    </div>
+  );
+}
+
+function SearchEmpty({ q, onClear }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-20 text-gray-400">
+      <p className="text-sm font-medium">No matches for “{q}”</p>
+      <p className="text-xs mt-1">Try a different keyword or clear the filter.</p>
+      <button onClick={onClear} className="mt-4 btn-neutral">Clear search</button>
     </div>
   );
 }

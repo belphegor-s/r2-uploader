@@ -3,11 +3,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, HardDrive } from 'lucide-react';
 import { driveApi } from '@/app/lib/driveClient';
-import { FolderIcon } from './fileIcons';
+import { FolderIcon, FileTypeIcon } from './fileIcons';
 
-function TreeNode({ scope, node, currentPrefix, onNavigate, depth = 0, refreshKey }) {
+function FileLeaf({ file, depth, onClick, currentPrefix }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(file)}
+      className="w-full group flex items-center gap-2 rounded-md hover:bg-[#2a2a2a] py-1.5 text-sm text-left truncate transition select-none"
+      style={{ paddingLeft: 8 + depth * 12 + 22 /* indent past chevron column */ }}
+      title={file.name}
+    >
+      <FileTypeIcon name={file.name} mime={file.mime} size={14} />
+      <span className="truncate text-gray-300 group-hover:text-white">{file.name}</span>
+    </button>
+  );
+}
+
+function TreeNode({ scope, node, currentPrefix, onNavigate, onFileOpen, depth = 0, refreshKey }) {
   const [open, setOpen] = useState(false);
-  const [children, setChildren] = useState(null);
+  const [data, setData] = useState(null); // { folders, files }
   const [loading, setLoading] = useState(false);
 
   const isActive = currentPrefix === node.prefix;
@@ -15,19 +30,19 @@ function TreeNode({ scope, node, currentPrefix, onNavigate, depth = 0, refreshKe
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await driveApi.tree(scope, node.prefix);
-      setChildren(res.folders || []);
+      const res = await driveApi.list(scope, node.prefix);
+      setData({ folders: res.folders || [], files: res.files || [] });
     } catch (err) {
       console.error(err);
-      setChildren([]);
+      setData({ folders: [], files: [] });
     } finally {
       setLoading(false);
     }
   }, [scope, node.prefix]);
 
   useEffect(() => {
-    if (open && children === null) load();
-  }, [open, children, load]);
+    if (open && data === null) load();
+  }, [open, data, load]);
 
   // Auto-expand when current path goes through this node
   useEffect(() => {
@@ -46,7 +61,7 @@ function TreeNode({ scope, node, currentPrefix, onNavigate, depth = 0, refreshKe
     <div>
       <div
         className={`group flex items-center gap-1 cursor-pointer rounded-md transition select-none ${
-          isActive ? 'bg-blue-600/15 border-l-2 border-blue-500' : 'hover:bg-[#2a2a2a] border-l-2 border-transparent'
+          isActive ? 'bg-blue-600/20 text-white' : 'hover:bg-[#2a2a2a]'
         }`}
         style={{ paddingLeft: 8 + depth * 12 }}
       >
@@ -70,19 +85,23 @@ function TreeNode({ scope, node, currentPrefix, onNavigate, depth = 0, refreshKe
       {open && (
         <div>
           {loading && <div className="text-xs text-gray-500 pl-8 py-1">Loading…</div>}
-          {!loading && children?.length === 0 && (
+          {!loading && data && data.folders.length === 0 && data.files.length === 0 && (
             <div className="text-xs text-gray-600 pl-8 py-1 italic">empty</div>
           )}
-          {children?.map((c) => (
+          {data?.folders.map((c) => (
             <TreeNode
               key={c.prefix}
               scope={scope}
               node={c}
               currentPrefix={currentPrefix}
               onNavigate={onNavigate}
+              onFileOpen={onFileOpen}
               depth={depth + 1}
               refreshKey={refreshKey}
             />
+          ))}
+          {data?.files.map((f) => (
+            <FileLeaf key={f.key} file={f} depth={depth + 1} onClick={onFileOpen} currentPrefix={currentPrefix} />
           ))}
         </div>
       )}
@@ -90,16 +109,19 @@ function TreeNode({ scope, node, currentPrefix, onNavigate, depth = 0, refreshKe
   );
 }
 
-export default function Sidebar({ scope, currentPrefix, onNavigate, refreshKey, onClose }) {
+export default function Sidebar({ scope, currentPrefix, onNavigate, onFileOpen, refreshKey, onClose }) {
   const [roots, setRoots] = useState(null);
+  const [rootFiles, setRootFiles] = useState([]);
 
   const loadRoots = useCallback(async () => {
     try {
-      const res = await driveApi.tree(scope, '');
+      const res = await driveApi.list(scope, '');
       setRoots(res.folders || []);
+      setRootFiles(res.files || []);
     } catch (err) {
       console.error(err);
       setRoots([]);
+      setRootFiles([]);
     }
   }, [scope]);
 
@@ -118,8 +140,8 @@ export default function Sidebar({ scope, currentPrefix, onNavigate, refreshKey, 
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
         <div
-          className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm select-none ${
-            !currentPrefix ? 'bg-blue-600/15 border-l-2 border-blue-500' : 'hover:bg-[#2a2a2a] border-l-2 border-transparent'
+          className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm select-none transition ${
+            !currentPrefix ? 'bg-blue-600/20 text-white' : 'hover:bg-[#2a2a2a]'
           }`}
           onClick={() => onNavigate('')}
           style={{ paddingLeft: 12 }}
@@ -134,8 +156,12 @@ export default function Sidebar({ scope, currentPrefix, onNavigate, refreshKey, 
             node={r}
             currentPrefix={currentPrefix}
             onNavigate={onNavigate}
+            onFileOpen={onFileOpen}
             refreshKey={refreshKey}
           />
+        ))}
+        {rootFiles.map((f) => (
+          <FileLeaf key={f.key} file={f} depth={0} onClick={onFileOpen} currentPrefix={currentPrefix} />
         ))}
       </div>
     </aside>

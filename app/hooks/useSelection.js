@@ -32,6 +32,9 @@ export default function useSelection() {
     setSelected(new Set(ids));
   }, []);
 
+  // Default: plain click toggles (multi-select by default).
+  // Shift-click selects contiguous range.
+  // Cmd/Ctrl-click also toggles (kept for muscle memory).
   const click = useCallback((id, index, ids, e) => {
     if (e?.shiftKey && lastIndex != null) {
       const [a, b] = [Math.min(lastIndex, index), Math.max(lastIndex, index)];
@@ -41,14 +44,12 @@ export default function useSelection() {
         range.forEach((x) => next.add(x));
         return next;
       });
-    } else if (e?.metaKey || e?.ctrlKey) {
-      toggle(id);
       setLastIndex(index);
     } else {
-      setOnly(id);
+      toggle(id);
       setLastIndex(index);
     }
-  }, [lastIndex, toggle, setOnly]);
+  }, [lastIndex, toggle]);
 
   const ids = useMemo(() => Array.from(selected), [selected]);
 
