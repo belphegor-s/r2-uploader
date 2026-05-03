@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, X, CornerDownLeft } from 'lucide-react';
 import { driveApi } from '@/app/lib/driveClient';
 import { FileTypeIcon } from './fileIcons';
 import { formatFileSize } from '@/utils/formatFileSize';
 
-export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActive, activeQuery, autoFocus = false }) {
+export default function SearchBar({ scope, onJump, onSubmit, onClearActive, activeQuery, autoFocus = false }) {
   const [q, setQ] = useState(activeQuery || '');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,27 +17,43 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
   const wrapperRef = useRef(null);
   const listRef = useRef(null);
 
+  // Keep latest values in refs so the document-level keydown handler is never stale.
+  const stateRef = useRef({ open, results, highlight, q, activeQuery });
+  stateRef.current = { open, results, highlight, q, activeQuery };
+
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
-  // Sync external activeQuery into input (e.g., when search applied from elsewhere)
+  // Sync external activeQuery into input
   useEffect(() => {
     if (activeQuery !== undefined && activeQuery !== q) setQ(activeQuery || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeQuery]);
 
+  // Reset highlight when query string changes (so a fresh search starts at top).
   useEffect(() => {
-    if (!q.trim()) { setResults([]); setTruncated(false); setHighlight(-1); return; }
+    setHighlight(q.trim() ? 0 : -1);
+  }, [q]);
+
+  // Debounced search fetch
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); setTruncated(false); return; }
     let alive = true;
     const t = setTimeout(async () => {
       setLoading(true);
       try {
         const res = await driveApi.search(scope, q.trim(), '');
         if (!alive) return;
-        setResults(res.results || []);
+        const list = res.results || [];
+        setResults(list);
         setTruncated(Boolean(res.truncated));
-        setHighlight(res.results?.length ? 0 : -1);
+        // Clamp highlight to the new bounds without forcibly resetting to 0 on every fetch.
+        setHighlight((h) => {
+          if (list.length === 0) return -1;
+          if (h < 0 || h >= list.length) return 0;
+          return h;
+        });
       } catch (err) {
         console.error(err);
       } finally {
@@ -47,6 +63,7 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
     return () => { alive = false; clearTimeout(t); };
   }, [q, scope]);
 
+  // Outside-click closes the dropdown
   useEffect(() => {
     const onClick = (e) => {
       if (!wrapperRef.current?.contains(e.target)) setOpen(false);
@@ -62,31 +79,32 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
     if (el) el.scrollIntoView({ block: 'nearest' });
   }, [highlight]);
 
-  const submitFilter = () => {
-    const query = q.trim();
+  const submitFilter = useCallback(() => {
+    const query = stateRef.current.q.trim();
     if (!query) return;
-    onSubmit?.({ q: query, results, truncated });
+    onSubmit?.({ q: query, results: stateRef.current.results, truncated });
     setOpen(false);
     inputRef.current?.blur();
-  };
+  }, [onSubmit, truncated]);
 
-  const onKeyDown = (e) => {
+  // Keydown handler shared between input.onKeyDown and document listener (failsafe).
+  const handleKey = useCallback((e) => {
+    const { open: isOpen, results: resList, highlight: hi, q: query, activeQuery: aq } = stateRef.current;
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (!results.length) return;
+      if (!resList.length) { setOpen(true); return; }
       setOpen(true);
-      setHighlight((h) => (h + 1) % results.length);
+      setHighlight((h) => (h + 1) % resList.length);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (!results.length) return;
+      if (!resList.length) { setOpen(true); return; }
       setOpen(true);
-      setHighlight((h) => (h <= 0 ? results.length - 1 : h - 1));
+      setHighlight((h) => (h <= 0 ? resList.length - 1 : h - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      // If a suggestion is highlighted via keyboard, jump to it.
-      // Otherwise apply the query as a filter on the main view.
-      if (open && highlight >= 0 && results[highlight]) {
-        onJump(results[highlight]);
+      if (isOpen && hi >= 0 && resList[hi]) {
+        onJump(resList[hi]);
         setOpen(false);
         inputRef.current?.blur();
       } else {
@@ -94,15 +112,26 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      if (open) setOpen(false);
-      else if (activeQuery) {
+      if (isOpen) setOpen(false);
+      else if (aq) {
         onClearActive?.();
         setQ('');
       } else {
         setQ('');
       }
     }
-  };
+  }, [onJump, onClearActive, submitFilter]);
+
+  // Document-level capture listener as failsafe — fires only when the input is focused.
+  useEffect(() => {
+    const onDocKey = (e) => {
+      if (document.activeElement !== inputRef.current) return;
+      if (!['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) return;
+      handleKey(e);
+    };
+    document.addEventListener('keydown', onDocKey, true);
+    return () => document.removeEventListener('keydown', onDocKey, true);
+  }, [handleKey]);
 
   const clear = () => {
     setQ('');
@@ -120,7 +149,7 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
         value={q}
         onFocus={() => setOpen(true)}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        onKeyDown={onKeyDown}
+        onKeyDown={handleKey}
         placeholder={`Search in ${scope}…`}
         className="w-full pl-9 pr-9 py-2 rounded-md bg-[#2a2a2a] border border-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
         aria-autocomplete="list"
@@ -142,7 +171,9 @@ export default function SearchBar({ scope, prefix, onJump, onSubmit, onClearActi
           ref={listRef}
           className="absolute mt-2 left-0 right-0 z-30 max-h-[60vh] overflow-y-auto custom-scrollbar bg-[#1c1c1c] border border-gray-700 rounded-xl shadow-2xl"
         >
-          {loading && <div className="p-3 text-xs text-gray-400">Searching…</div>}
+          {loading && results.length === 0 && (
+            <div className="p-3 text-xs text-gray-400">Searching…</div>
+          )}
 
           {!loading && results.length === 0 && (
             <div className="p-3 text-xs text-gray-400">No matches in suggestions.</div>
