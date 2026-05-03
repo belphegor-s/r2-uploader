@@ -65,22 +65,24 @@ export default function Toolbar({
           <Search size={16} />
         </motion.button>
 
-        <div className="hidden sm:flex items-center bg-[#2a2a2a] rounded-md p-0.5 relative">
+        <div className="hidden sm:flex items-center bg-[#1c1c1c] border border-gray-800 rounded-md p-0.5 relative">
           {['grid', 'list'].map((mode) => (
             <button
               key={mode}
               onClick={() => setView(mode)}
-              className={`relative z-10 p-1.5 rounded transition-colors ${view === mode ? 'text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`relative px-2 py-1.5 rounded transition-colors ${view === mode ? 'text-white' : 'text-gray-500 hover:text-gray-200'}`}
               aria-label={`${mode} view`}
             >
-              {mode === 'grid' ? <LayoutGrid size={16} /> : <List size={16} />}
               {view === mode && (
                 <motion.span
                   layoutId="viewModeIndicator"
-                  className="absolute inset-0 bg-[#3a3a3a] rounded -z-0"
+                  className="absolute inset-0 bg-[#2e2e2e] rounded shadow-sm ring-1 ring-white/5"
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 />
               )}
+              <span className="relative z-10 inline-flex">
+                {mode === 'grid' ? <LayoutGrid size={15} /> : <List size={15} />}
+              </span>
             </button>
           ))}
         </div>
