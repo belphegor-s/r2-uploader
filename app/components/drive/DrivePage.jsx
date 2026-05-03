@@ -81,6 +81,7 @@ export default function DrivePage({ scope }) {
   const [busy, setBusy] = useState(false);
   const dragCounter = useRef(0);
   const batchControllers = useRef(new Map());
+  const searchBarRef = useRef(null);
   const [dropOver, setDropOver] = useState(false);
   const [activeSearch, setActiveSearch] = useState(null); // { q, results, truncated }
 
@@ -393,10 +394,29 @@ export default function DrivePage({ scope }) {
       }).filter(Boolean);
       askDelete(items);
     },
-    onSearch: () => setSearchOverlay(true),
+    onSearch: () => {
+      if (window.innerWidth < 768) setSearchOverlay(true);
+      else searchBarRef.current?.focus();
+    },
     onEsc: () => { selection.clear(); ctxMenu.close(); setActiveSearch(null); },
     enabled: !previewState && !confirm && !renameTarget && !moveDialog && !shareKey && !newFolderOpen,
   });
+
+  // "/" focuses search (when not typing in another field)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/') return;
+      const t = e.target;
+      const tag = t?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
+      if (previewState || confirm || renameTarget || moveDialog || shareKey || newFolderOpen) return;
+      e.preventDefault();
+      if (window.innerWidth < 768) setSearchOverlay(true);
+      else searchBarRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [previewState, confirm, renameTarget, moveDialog, shareKey, newFolderOpen]);
 
   // ─── Item handlers ─────────────────────────────────────────────────────
   const onItemClick = ({ id, index, ids, e }) => {
@@ -504,11 +524,11 @@ export default function DrivePage({ scope }) {
 
   // ─── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#272727] text-[#f5f5f5] flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#272727] text-[#f5f5f5] flex flex-col">
       <Navbar />
 
       <div
-        className="flex-1 flex relative"
+        className="flex-1 flex relative min-h-0"
         onDragEnter={onDragEnter}
         onDragLeave={onDragLeave}
         onDragOver={onDragOver}
@@ -543,10 +563,11 @@ export default function DrivePage({ scope }) {
         )}
 
         {/* Main */}
-        <main className="flex-1 min-w-0 flex flex-col">
-          <div className="px-3 sm:px-6 pt-4 pb-2 flex flex-col gap-3 border-b border-gray-800 bg-[#272727] sticky top-0 z-20">
+        <main className="flex-1 min-w-0 flex flex-col min-h-0">
+          <div className="px-3 sm:px-6 pt-4 pb-3 flex flex-col gap-3 border-b border-gray-800 bg-[#272727] shrink-0">
             <div className="hidden md:flex items-center gap-3">
               <SearchBar
+                ref={searchBarRef}
                 scope={scope}
                 prefix={prefix}
                 onJump={(r) => navigate(r.folder)}

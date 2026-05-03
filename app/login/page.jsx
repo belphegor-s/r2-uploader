@@ -59,10 +59,10 @@ export default function LoginPage() {
         transition={{ duration: 0.35, ease: 'easeOut' }}
         className="relative w-full max-w-sm"
       >
-        <div className="flex flex-col items-center gap-3 mb-8">
-          <Image src={CFIcon} alt="Cloudflare" width={36} height={36} />
-          <h1 className="text-xl font-semibold text-white tracking-tight">R2 Uploader</h1>
-          <p className="text-sm text-gray-400">Sign in to continue</p>
+        <div className="flex flex-col items-center gap-3 mb-10">
+          <Image src={CFIcon} alt="Cloudflare" width={40} height={40} />
+          <h1 className="text-2xl font-semibold text-white">R2 Uploader</h1>
+          <p className="text-sm text-gray-300">Sign in to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -126,7 +126,7 @@ export default function LoginPage() {
           </motion.button>
         </form>
 
-        <p className="mt-8 text-center text-xs text-gray-500">
+        <p className="mt-8 text-center text-xs text-gray-400">
           Cloudflare R2 · Next.js
         </p>
       </motion.div>
@@ -137,7 +137,7 @@ export default function LoginPage() {
 function Input({ id, label, suffix, ...props }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-gray-200 mb-1.5">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-100 mb-2">
         {label}
       </label>
       <div className="relative">
@@ -145,7 +145,7 @@ function Input({ id, label, suffix, ...props }) {
           id={id}
           required
           {...props}
-          className={`w-full ${suffix ? 'pr-10' : 'pr-3'} pl-3 py-2.5 rounded-md bg-[#1c1c1c] border border-gray-700 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition disabled:opacity-60`}
+          className={`w-full ${suffix ? 'pr-10' : 'pr-3'} pl-3 py-2.5 rounded-md bg-[#1c1c1c] border border-gray-700 text-[15px] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition disabled:opacity-60`}
         />
         {suffix && <span className="absolute right-2 top-1/2 -translate-y-1/2">{suffix}</span>}
       </div>
