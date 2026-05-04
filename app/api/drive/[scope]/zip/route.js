@@ -15,27 +15,25 @@ export async function POST(req, { params }) {
   try { body = await req.json(); } catch { return badRequest('Invalid JSON'); }
   const { keys = [], folderPrefix, filename = 'download.zip' } = body || {};
 
-  let allKeys = [];
   let stripPrefix = `${scope.rootPrefix}/`;
 
   try {
+    let keysSource;
     if (folderPrefix !== undefined) {
       const norm = normalizePrefix(folderPrefix);
       const fullPrefix = norm ? `${scope.rootPrefix}/${norm}/` : `${scope.rootPrefix}/`;
       ensureRootPrefixed(fullPrefix, scope.rootPrefix);
       stripPrefix = fullPrefix;
-      for await (const obj of iterateAllObjects(scope.bucket, fullPrefix)) {
-        if (!isFolderMarker(obj.Key)) allKeys.push(obj.Key);
-      }
+      keysSource = iterateAllObjects(scope.bucket, fullPrefix);
     } else {
       if (!Array.isArray(keys) || keys.length === 0) return badRequest('keys[] or folderPrefix required');
       keys.forEach((k) => ensureRootPrefixed(k, scope.rootPrefix));
-      allKeys = keys;
+      keysSource = keys;
     }
 
     const archive = streamZip({
       bucket: scope.bucket,
-      keys: allKeys,
+      keys: keysSource,
       entryNameFor: (key) => {
         if (folderPrefix !== undefined && key.startsWith(stripPrefix)) {
           const rel = key.slice(stripPrefix.length);
