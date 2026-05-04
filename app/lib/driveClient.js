@@ -63,7 +63,7 @@ export function downloadZip(scope, payload, filename = 'download.zip') {
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = `/api/drive/${scope}/zip`;
-  // form.target = '_blank'; // Remove this to download in the current tab
+  form.target = '_self'; // Ensure download happens in the current tab
 
   document.body.appendChild(form);
   form.submit();
