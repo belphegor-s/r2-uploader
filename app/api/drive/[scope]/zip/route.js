@@ -12,7 +12,19 @@ export async function POST(req, { params }) {
   if (error) return error;
 
   let body;
-  try { body = await req.json(); } catch { return badRequest('Invalid JSON'); }
+  try {
+    const contentType = req.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      body = await req.json();
+    } else if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
+      const fd = await req.formData();
+      const payload = fd.get('payload');
+      if (payload) body = JSON.parse(payload);
+    }
+  } catch (err) {
+    return badRequest('Invalid request body');
+  }
+
   const { keys = [], folderPrefix, filename = 'download.zip' } = body || {};
 
   let stripPrefix = `${scope.rootPrefix}/`;

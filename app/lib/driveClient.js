@@ -57,26 +57,21 @@ export const driveApi = {
   zipUrl: (scope) => `${base(scope)}/zip`,
 };
 
-// Triggers a browser download of a POST stream by submitting an invisible form? No — fetch + blob.
-// For potentially huge zips, use anchor + form submission? We use fetch + reading via response stream is heavy.
-// Simpler approach: open a hidden iframe with a temporary form POST.
-export async function downloadZip(scope, payload, filename = 'download.zip', signal) {
-  const res = await fetch(`/api/drive/${scope}/zip`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...payload, filename }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`Zip failed: ${res.status}`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+// Triggers a native browser download using a hidden form POST.
+// This allows the browser to handle the stream directly, avoiding memory issues and showing immediate progress.
+export function downloadZip(scope, payload, filename = 'download.zip') {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/api/drive/${scope}/zip`;
+  form.target = '_blank'; // Keeps the current page state
+
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'payload';
+  input.value = JSON.stringify({ ...payload, filename });
+  form.appendChild(input);
+
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
 }

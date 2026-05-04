@@ -271,48 +271,32 @@ export default function DrivePage({ scope }) {
   }, []);
 
   const zipFolder = useCallback(
-    async (folder) => {
-      const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const controller = new AbortController();
-      batchControllers.current.set(id, controller);
-      setBatches((b) => [...b, { id, label: `Zipping ${folder.name}`, status: 'uploading', percent: 0 }]);
+    (folder) => {
       try {
-        await downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`, controller.signal);
-        setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: 'done', percent: 100 } : x)));
+        downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`);
       } catch (err) {
-        const cancelled = err?.name === 'AbortError';
-        setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x)));
-      } finally {
-        batchControllers.current.delete(id);
+        toast.error('Failed to start zip');
       }
     },
     [scope],
   );
 
   const zipMultiple = useCallback(
-    async (items) => {
+    (items) => {
       const fileItems = items.filter((x) => x.kind === 'file').map((x) => x.item);
       const folderItems = items.filter((x) => x.kind === 'folder').map((x) => x.item);
       if (fileItems.length === 0 && folderItems.length === 0) return;
 
       if (folderItems.length === 0) {
-        const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        const controller = new AbortController();
-        batchControllers.current.set(id, controller);
-        setBatches((b) => [...b, { id, label: `Zipping ${fileItems.length} files`, status: 'uploading' }]);
         try {
-          await downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`, controller.signal);
-          setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: 'done' } : x)));
+          downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`);
         } catch (err) {
-          const cancelled = err?.name === 'AbortError';
-          setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x)));
-        } finally {
-          batchControllers.current.delete(id);
+          toast.error('Failed to start zip');
         }
       } else {
-        // Mixed selection: zip each folder individually + one for the loose files.
-        for (const folder of folderItems) await zipFolder(folder);
-        if (fileItems.length) await zipMultiple(fileItems.map((f) => ({ kind: 'file', item: f })));
+        // Zip each folder individually + one for the loose files.
+        for (const folder of folderItems) zipFolder(folder);
+        if (fileItems.length) zipMultiple(fileItems.map((f) => ({ kind: 'file', item: f })));
       }
     },
     [scope, zipFolder],
