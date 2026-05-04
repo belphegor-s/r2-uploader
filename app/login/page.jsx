@@ -12,10 +12,14 @@ import CFIcon from '@/assets/cloudflare-icon.svg';
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6-digit OTP state
   const [showPassword, setShowPassword] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  const otpString = otp.join('');
+  const isFormValid = username && password && otpString.length === 6;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,10 +31,11 @@ export default function LoginPage() {
       redirect: false,
       username,
       password,
+      otp: otpString, // Pass OTP to NextAuth
     });
 
     if (result?.error) {
-      const msg = 'Invalid username or password';
+      const msg = 'Invalid credentials or authenticator code';
       setError(msg);
       toast.error(msg);
       setProcessing(false);
@@ -53,12 +58,7 @@ export default function LoginPage() {
         }}
       />
 
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="relative w-full max-w-sm"
-      >
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="relative w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-10">
           <Image src={CFIcon} alt="Cloudflare" width={40} height={40} />
           <h1 className="text-2xl font-semibold text-white">R2 Uploader</h1>
@@ -72,7 +72,10 @@ export default function LoginPage() {
             type="text"
             autoComplete="username"
             value={username}
-            onChange={(e) => { setUsername(e.target.value); if (error) setError(''); }}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              if (error) setError('');
+            }}
             placeholder="ayush"
             disabled={processing}
           />
@@ -83,7 +86,10 @@ export default function LoginPage() {
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
             value={password}
-            onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (error) setError('');
+            }}
             placeholder="••••••••"
             disabled={processing}
             suffix={
@@ -99,12 +105,11 @@ export default function LoginPage() {
             }
           />
 
+          {/* OTP 6-Box Input Component */}
+          <OTPInput otp={otp} setOtp={setOtp} disabled={processing} setError={setError} />
+
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-xs text-red-400"
-            >
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-red-400">
               {error}
             </motion.div>
           )}
@@ -112,7 +117,7 @@ export default function LoginPage() {
           <motion.button
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={processing || !username || !password}
+            disabled={processing || !isFormValid}
             className="w-full py-2.5 mt-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {processing ? (
@@ -126,9 +131,7 @@ export default function LoginPage() {
           </motion.button>
         </form>
 
-        <p className="mt-8 text-center text-xs text-gray-400">
-          Cloudflare R2 · Next.js
-        </p>
+        <p className="mt-8 text-center text-xs text-gray-400">Cloudflare R2 · Next.js</p>
       </motion.div>
     </div>
   );
@@ -148,6 +151,81 @@ function Input({ id, label, suffix, ...props }) {
           className={`w-full ${suffix ? 'pr-10' : 'pr-3'} pl-3 py-2.5 rounded-md bg-[#1c1c1c] border border-gray-700 text-[15px] text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition disabled:opacity-60`}
         />
         {suffix && <span className="absolute right-2 top-1/2 -translate-y-1/2">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+function OTPInput({ otp, setOtp, disabled, setError }) {
+  const inputRefs = Array(6)
+    .fill(0)
+    .map(() => ({})); // Temporary refs for focus
+
+  const handleChange = (value, index) => {
+    if (isNaN(value)) return;
+
+    const newOtp = [...otp];
+    // Take only the last character if user types over an existing digit
+    newOtp[index] = value.substring(value.length - 1);
+    setOtp(newOtp);
+    setError('');
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === 'Backspace') {
+      if (!otp[index] && index > 0) {
+        // Focus previous input on backspace if current is empty
+        const prevInput = document.getElementById(`otp-${index - 1}`);
+        prevInput?.focus();
+      }
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text/plain').replace(/\D/g, '').slice(0, 6);
+    if (!pastedData) return;
+
+    const newOtp = [...otp];
+    pastedData.split('').forEach((char, i) => {
+      if (i < 6) newOtp[i] = char;
+    });
+    setOtp(newOtp);
+    setError('');
+
+    // Focus the last filled input or the next empty one
+    const targetIndex = Math.min(pastedData.length, 5);
+    document.getElementById(`otp-${targetIndex}`)?.focus();
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex justify-between items-center px-0.5">
+        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Verification Code</label>
+      </div>
+      <div className="flex gap-2 sm:gap-3 justify-between">
+        {otp.map((data, index) => (
+          <input
+            key={index}
+            id={`otp-${index}`}
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={data}
+            disabled={disabled}
+            onChange={(e) => handleChange(e.target.value, index)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
+            onPaste={handlePaste}
+            // Reduced size from w-12 h-12 to w-10 h-11 for a sleeker look
+            className="w-10 h-11 sm:w-11 sm:h-12 text-center rounded-md bg-[#1c1c1c] border border-gray-800 text-lg font-bold text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:opacity-50 placeholder:text-gray-600"
+          />
+        ))}
       </div>
     </div>
   );
