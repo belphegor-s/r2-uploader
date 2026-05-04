@@ -25,7 +25,7 @@ import useDriveData from '@/app/hooks/useDriveData';
 import useSelection from '@/app/hooks/useSelection';
 import useContextMenu from '@/app/hooks/useContextMenu';
 import useKeyboardShortcuts from '@/app/hooks/useKeyboardShortcuts';
-import { driveApi, downloadZipWithProgress } from '@/app/lib/driveClient';
+import { driveApi, downloadFileWithProgress, downloadZipWithProgress } from '@/app/lib/driveClient';
 import { uploadEntries, fileListToEntries, snapshotDataTransferEntries, walkSnapshot } from '@/app/lib/uploadClient';
 import { categoryOf } from '@/app/lib/fileTypes';
 import copyToClipboard from '@/utils/copyToClipboard';
@@ -259,20 +259,62 @@ export default function DrivePage({ scope }) {
   );
 
   const downloadOne = useCallback(
-    async (file) => {
-      try {
-        const { url } = await driveApi.previewUrl(scope, file.key);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      } catch (err) {
-        toast.error('Failed to start download');
-      }
+    (file) => {
+      const id = `dl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const controller = new AbortController();
+      batchControllers.current.set(id, controller);
+      setBatches((b) => [
+        ...b,
+        { id, label: `Downloading "${file.name}"`, status: 'uploading', percent: 0, indeterminate: true, message: 'Preparing…' },
+      ]);
+
+      downloadFileWithProgress(scope, file.key, file.name, {
+        signal: controller.signal,
+        onProgress: ({ loaded, total, percent }) => {
+          setBatches((b) =>
+            b.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    percent: percent ?? 0,
+                    indeterminate: percent === null,
+                    message: total
+                      ? `${formatBytes(loaded)} / ${formatBytes(total)}`
+                      : `${formatBytes(loaded)} downloaded`,
+                  }
+                : x,
+            ),
+          );
+        },
+      })
+        .then(({ bytes }) => {
+          setBatches((b) =>
+            b.map((x) =>
+              x.id === id
+                ? { ...x, status: 'done', percent: 100, indeterminate: false, message: `Saved (${formatBytes(bytes)})` }
+                : x,
+            ),
+          );
+        })
+        .catch((err) => {
+          const cancelled = err?.name === 'AbortError';
+          setBatches((b) =>
+            b.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    status: cancelled ? 'cancelled' : 'error',
+                    indeterminate: false,
+                    message: cancelled ? 'Cancelled' : err?.message || 'Download failed',
+                  }
+                : x,
+            ),
+          );
+          if (!cancelled) toast.error(err?.message || 'Download failed');
+        })
+        .finally(() => {
+          batchControllers.current.delete(id);
+        });
     },
     [scope],
   );
@@ -844,7 +886,7 @@ export default function DrivePage({ scope }) {
         busy={moveBusy}
       />
       {scope === 'private' && <ShareDialog open={Boolean(shareKey)} fileKey={shareKey} onClose={() => setShareKey(null)} />}
-      {previewState && <PreviewModal scope={scope} files={previewState.files || previewableFiles} startIndex={previewState.startIndex} onClose={() => setPreviewState(null)} />}
+      {previewState && <PreviewModal scope={scope} files={previewState.files || previewableFiles} startIndex={previewState.startIndex} onClose={() => setPreviewState(null)} onDownload={downloadOne} />}
 
       <UploadProgress batches={batches} onDismiss={(id) => setBatches((b) => b.filter((x) => x.id !== id))} onCancel={cancelBatch} lift={selection.size > 0} />
     </div>

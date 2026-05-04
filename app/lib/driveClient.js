@@ -57,6 +57,71 @@ export const driveApi = {
   zipUrl: (scope) => `${base(scope)}/zip`,
 };
 
+// Streams a single file through the server-side download proxy, reporting progress,
+// then triggers a browser save via blob URL. Supports cancel via AbortSignal.
+// Content-Length is forwarded from R2, enabling determinate progress bars.
+export async function downloadFileWithProgress(scope, key, filename, { signal, onProgress } = {}) {
+  const url = new URL(`/api/drive/${scope}/download`, window.location.origin);
+  url.searchParams.set('key', key);
+
+  const res = await fetch(url.toString(), { signal, cache: 'no-store' });
+
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`;
+    try {
+      const text = await res.text();
+      if (text) msg = text.slice(0, 300);
+    } catch {}
+    throw new Error(msg);
+  }
+
+  const totalHeader = res.headers.get('content-length');
+  const total = totalHeader ? Number(totalHeader) : 0;
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('Streaming not supported in this browser');
+
+  const chunks = [];
+  let received = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        received += value.byteLength;
+        if (onProgress) {
+          onProgress({
+            loaded: received,
+            total,
+            percent: total ? Math.min(100, (received / total) * 100) : null,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    try { await reader.cancel(); } catch {}
+    throw err;
+  }
+
+  const blob = new Blob(chunks, { type: res.headers.get('content-type') || 'application/octet-stream' });
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  }
+
+  return { bytes: received };
+}
+
 // Streams the zip response into memory, reporting progress, then triggers a
 // browser save via blob URL. Supports cancel via AbortSignal.
 //

@@ -8,7 +8,7 @@ import { categoryOf } from '@/app/lib/fileTypes';
 import { formatFileSize } from '@/utils/formatFileSize';
 import TextPreview from './preview/TextPreview';
 
-export default function PreviewModal({ scope, files, startIndex, onClose, onAfterAction }) {
+export default function PreviewModal({ scope, files, startIndex, onClose, onAfterAction, onDownload }) {
   const [index, setIndex] = useState(startIndex);
   const [url, setUrl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,9 +75,9 @@ export default function PreviewModal({ scope, files, startIndex, onClose, onAfte
 
           {url && (
             <>
-              <a href={url} download={file.name} target="_blank" rel="noopener noreferrer" className="p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a]" aria-label="Download" title="Download">
+              <button onClick={() => onDownload?.(file)} className="p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a]" aria-label="Download" title="Download">
                 <Download size={16} />
-              </a>
+              </button>
               <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a] hidden sm:inline-flex" aria-label="Open" title="Open in new tab">
                 <ExternalLink size={16} />
               </a>
@@ -92,7 +92,7 @@ export default function PreviewModal({ scope, files, startIndex, onClose, onAfte
           {loading && <div className="h-full flex items-center justify-center text-gray-400 text-sm">Loading…</div>}
           {error && <div className="h-full flex items-center justify-center text-red-400 text-sm">Failed to load preview.</div>}
           {!loading && !error && url && (
-            <PreviewContent cat={cat} file={file} url={url} />
+            <PreviewContent cat={cat} file={file} url={url} onDownload={onDownload} />
           )}
         </div>
       </motion.div>
@@ -100,7 +100,7 @@ export default function PreviewModal({ scope, files, startIndex, onClose, onAfte
   );
 }
 
-function PreviewContent({ cat, file, url }) {
+function PreviewContent({ cat, file, url, onDownload }) {
   if (cat === 'image') {
     return (
       <div className="h-full w-full flex items-center justify-center p-4">
@@ -132,7 +132,10 @@ function PreviewContent({ cat, file, url }) {
   return (
     <div className="h-full w-full flex flex-col items-center justify-center gap-4 text-gray-400 text-sm p-6">
       <p>No inline preview for this file type.</p>
-      <a href={url} download={file.name} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-white">Download</a>
+      <button onClick={() => onDownload?.(file)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-white flex items-center gap-2">
+        <Download size={16} />
+        Download
+      </button>
     </div>
   );
 }
