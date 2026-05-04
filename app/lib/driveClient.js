@@ -60,12 +60,19 @@ export const driveApi = {
 // Triggers a native browser download using a hidden form POST.
 // This allows the browser to handle the stream directly, avoiding memory issues and showing immediate progress.
 export function downloadZip(scope, payload, filename = 'download.zip') {
+  const body = { ...(payload || {}), filename };
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = `/api/drive/${scope}/zip`;
   form.target = '_self'; // Ensure download happens in the current tab
 
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'payload';
+  input.value = JSON.stringify(body);
+  form.appendChild(input);
+
   document.body.appendChild(form);
   form.submit();
-  document.body.removeChild(form);
+  window.setTimeout(() => form.remove(), 0);
 }

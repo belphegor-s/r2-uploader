@@ -2,7 +2,7 @@ import { Readable } from 'stream';
 import { requireAuthAndScope, badRequest } from '@/lib/r2/guard';
 import { streamZip } from '@/lib/r2/zip';
 import { iterateAllObjects } from '@/lib/r2/listing';
-import { ensureRootPrefixed, normalizePrefix, isFolderMarker, basenameFromKey } from '@/lib/r2/keys';
+import { ensureRootPrefixed, normalizePrefix, basenameFromKey } from '@/lib/r2/keys';
 
 export const runtime = 'nodejs';
 
@@ -26,12 +26,15 @@ export async function POST(req, { params }) {
           console.error('Failed to parse payload JSON:', parseErr);
           return badRequest('Invalid JSON payload'); // Return specific error for JSON parse failure
         }
-      } else if (payload === null || payload === undefined) {
-        // If payload is null/undefined, body remains {}, which is handled by destructuring defaults.
       } else {
-         // Handle cases where payload is not a string (e.g., a File object, though unlikely here)
-         console.error('Unexpected payload type:', typeof payload);
-         return badRequest('Unexpected payload type');
+        const formKeys = [...fd.getAll('keys'), ...fd.getAll('keys[]')].filter((value) => typeof value === 'string');
+        const folderPrefix = fd.get('folderPrefix');
+        const filename = fd.get('filename');
+        body = {
+          ...(formKeys.length ? { keys: formKeys } : {}),
+          ...(typeof folderPrefix === 'string' ? { folderPrefix } : {}),
+          ...(typeof filename === 'string' ? { filename } : {}),
+        };
       }
     }
   } catch (err) {
