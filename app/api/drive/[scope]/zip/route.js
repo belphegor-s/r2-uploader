@@ -11,7 +11,7 @@ export async function POST(req, { params }) {
   const { error, scope } = await requireAuthAndScope(req, scopeName);
   if (error) return error;
 
-  let body;
+  let body = {}; // Default to an empty object
   try {
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
@@ -19,13 +19,27 @@ export async function POST(req, { params }) {
     } else if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
       const fd = await req.formData();
       const payload = fd.get('payload');
-      if (payload) body = JSON.parse(payload);
+      if (payload && typeof payload === 'string') { // Ensure it's a string before parsing
+        try {
+          body = JSON.parse(payload);
+        } catch (parseErr) {
+          console.error('Failed to parse payload JSON:', parseErr);
+          return badRequest('Invalid JSON payload'); // Return specific error for JSON parse failure
+        }
+      } else if (payload === null || payload === undefined) {
+        // If payload is null/undefined, body remains {}, which is handled by destructuring defaults.
+      } else {
+         // Handle cases where payload is not a string (e.g., a File object, though unlikely here)
+         console.error('Unexpected payload type:', typeof payload);
+         return badRequest('Unexpected payload type');
+      }
     }
   } catch (err) {
+    console.error('Error parsing request body:', err);
     return badRequest('Invalid request body');
   }
 
-  const { keys = [], folderPrefix, filename = 'download.zip' } = body || {};
+  const { keys = [], folderPrefix, filename = 'download.zip' } = body;
 
   let stripPrefix = `${scope.rootPrefix}/`;
 
