@@ -82,63 +82,125 @@ export function fileListToEntries(fileList) {
   }));
 }
 
-// Upload entries to /api/drive/[scope]/upload via XHR for progress events.
-// Pass an AbortSignal to cancel — promise rejects with err.name === 'AbortError'.
-export function uploadEntries({ scope, prefix, entries, onProgress, onFileDone, signal }) {
-  return new Promise((resolve, reject) => {
-    const fd = new FormData();
-    fd.append('prefix', prefix || '');
-    for (const { file, relativePath } of entries) {
-      fd.append('relativePath', relativePath || file.name);
-      fd.append('files', file, file.name);
-    }
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/drive/${scope}/upload`);
+// Upload entries using presigned URLs.
+// 1. Get presigned URLs for all files.
+// 2. Upload files in parallel with a concurrency limit.
+// 3. Track aggregate progress.
+export async function uploadEntries({ scope, prefix, entries, onProgress, onFileDone, signal }) {
+  if (!entries.length) return;
 
-    let aborted = false;
-    const onAbort = () => {
-      aborted = true;
-      try { xhr.abort(); } catch {}
-      const err = new Error('Upload cancelled');
-      err.name = 'AbortError';
-      reject(err);
-    };
-    if (signal) {
-      if (signal.aborted) { onAbort(); return; }
-      signal.addEventListener('abort', onAbort, { once: true });
-    }
+  // Step 1: Get presigned URLs
+  const presignResp = await fetch(`/api/drive/${scope}/upload/presign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prefix,
+      files: entries.map((e) => ({
+        filename: e.file.name,
+        size: e.file.size,
+        relativePath: e.relativePath,
+        mimeType: e.file.type || 'application/octet-stream',
+      })),
+    }),
+    signal,
+  });
 
-    xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable && onProgress) {
-        onProgress({ loaded: ev.loaded, total: ev.total, percent: (ev.loaded / ev.total) * 100 });
-      }
-    };
-    xhr.onload = () => {
-      signal?.removeEventListener?.('abort', onAbort);
-      if (aborted) return;
-      try {
-        const body = JSON.parse(xhr.responseText || '{}');
-        if (xhr.status >= 200 && xhr.status < 300) {
-          if (onFileDone) onFileDone(body);
-          resolve(body);
-        } else reject(new Error(body?.error || xhr.responseText || 'Upload failed'));
-      } catch (err) {
-        reject(err);
-      }
-    };
-    xhr.onerror = () => {
-      signal?.removeEventListener?.('abort', onAbort);
-      if (aborted) return;
-      reject(new Error('Network error'));
-    };
-    xhr.onabort = () => {
-      signal?.removeEventListener?.('abort', onAbort);
-      if (!aborted) {
+  if (!presignResp.ok) {
+    const err = await presignResp.json();
+    throw new Error(err.error || 'Failed to get presigned URLs');
+  }
+
+  const { files: presignedFiles } = await presignResp.json();
+
+  // Step 2: Upload files
+  const totalSize = entries.reduce((acc, e) => acc + e.file.size, 0);
+  const fileProgress = new Map(); // key -> loaded bytes
+  presignedFiles.forEach((f) => fileProgress.set(f.key, 0));
+
+  const uploadFile = (file, url, key) => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', url);
+      // Ensure Content-Type matches what was signed. 
+      // If file.type is empty, we signed it as 'application/octet-stream' in the backend,
+      // but the SDK getSignedUrl default might differ. 
+      // Let's force it to match our backend logic.
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+      const onAbort = () => {
+        try {
+          xhr.abort();
+        } catch {}
         const err = new Error('Upload cancelled');
         err.name = 'AbortError';
         reject(err);
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
       }
-    };
-    xhr.send(fd);
-  });
+
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          fileProgress.set(key, ev.loaded);
+          const totalLoaded = Array.from(fileProgress.values()).reduce((a, b) => a + b, 0);
+          if (onProgress) {
+            onProgress({
+              loaded: totalLoaded,
+              total: totalSize,
+              percent: (totalLoaded / totalSize) * 100,
+            });
+          }
+        }
+      };
+
+      xhr.onload = () => {
+        signal?.removeEventListener?.('abort', onAbort);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          fileProgress.set(key, file.size); // Ensure it's marked as fully loaded
+          if (onFileDone) onFileDone({ key, name: file.name, size: file.size });
+          resolve();
+        } else {
+          reject(new Error(`Upload failed for ${file.name}: ${xhr.statusText}`));
+        }
+      };
+
+      xhr.onerror = () => {
+        signal?.removeEventListener?.('abort', onAbort);
+        reject(new Error(`Network error uploading ${file.name}`));
+      };
+
+      xhr.onabort = () => {
+        signal?.removeEventListener?.('abort', onAbort);
+        const err = new Error('Upload cancelled');
+        err.name = 'AbortError';
+        reject(err);
+      };
+
+      xhr.send(file);
+    });
+  };
+
+  // Concurrency control
+  const CONCURRENCY = 3;
+  const queue = [...presignedFiles.map((pf, i) => ({ ...pf, file: entries[i].file }))];
+  const results = [];
+  const workers = Array(Math.min(CONCURRENCY, queue.length))
+    .fill(null)
+    .map(async () => {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (!item) break;
+        await uploadFile(item.file, item.url, item.key);
+        results.push({ key: item.key, name: item.filename, size: item.file.size });
+      }
+    });
+
+
+  await Promise.all(workers);
+  return { message: 'Upload complete', files: results };
 }
