@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import {
-  Eye, Download, Pencil, Move, Copy, Trash2, Share2, Link as LinkIcon, FolderOpen, Archive,
-} from 'lucide-react';
+import { Eye, Download, Pencil, Move, Copy, Trash2, Share2, Link as LinkIcon, FolderOpen, Archive } from 'lucide-react';
 import Navbar from '@/app/components/Navbar';
 import Loader from '@/app/components/Loader';
 import Sidebar from './Sidebar';
@@ -32,17 +30,24 @@ import { uploadEntries, fileListToEntries, snapshotDataTransferEntries, walkSnap
 import { categoryOf } from '@/app/lib/fileTypes';
 import copyToClipboard from '@/utils/copyToClipboard';
 
-function sortItems({ folders, files }, sort) {
+function sortItems(data = {}, sort) {
+  const folders = Array.isArray(data.folders) ? data.folders : [];
+  const files = Array.isArray(data.files) ? data.files : [];
+
   const f = [...folders];
   const fs = [...files];
+
   const dir = sort.dir === 'asc' ? 1 : -1;
+
   const cmp = (a, b, by) => {
     if (by === 'name') return a.name.localeCompare(b.name) * dir;
     if (by === 'size') return ((a.size ?? 0) - (b.size ?? 0)) * dir;
     return (new Date(a.lastModified || 0) - new Date(b.lastModified || 0)) * dir;
   };
+
   f.sort((a, b) => a.name.localeCompare(b.name));
   fs.sort((a, b) => cmp(a, b, sort.by));
+
   return { folders: f, files: fs };
 }
 
@@ -95,24 +100,62 @@ export default function DrivePage({ scope }) {
   }, [view]);
 
   // Reset selection + clear search on path change
-  useEffect(() => { selection.clear(); setActiveSearch(null); }, [prefix, scope]); // eslint-disable-line
+  useEffect(() => {
+    selection.clear();
+    setActiveSearch(null);
+  }, [prefix, scope]); // eslint-disable-line
+
+  const runSearch = useCallback(
+    async (q) => {
+      try {
+        const res = await driveApi.search(scope, q);
+
+        setActiveSearch({
+          q,
+          results: res?.results || [],
+          truncated: res?.truncated,
+        });
+
+        selection.clear();
+
+        const params = new URLSearchParams(window.location.search);
+        params.set('q', q);
+        router.push(`?${params.toString()}`);
+      } catch (err) {
+        console.error(err);
+        toast.error('Search failed');
+      }
+    },
+    [scope, router, selection],
+  );
+
+  const clearSearch = useCallback(() => {
+    setActiveSearch(null);
+
+    const params = new URLSearchParams(window.location.search);
+    params.delete('q');
+    router.push(params.toString() ? `?${params.toString()}` : '?');
+  }, [router]);
 
   const sorted = useMemo(() => {
     if (activeSearch) {
       // In search mode, only files from results.
-      const fakeData = { folders: [], files: activeSearch.results };
+      const fakeData = { folders: [], files: activeSearch.results || [] };
       return sortItems(fakeData, sort);
     }
     return sortItems(data, sort);
   }, [data, sort, activeSearch]);
 
-  const navigate = useCallback((newPrefix) => {
-    const params = new URLSearchParams(Array.from(searchParams.entries()));
-    if (newPrefix) params.set('path', newPrefix);
-    else params.delete('path');
-    const qs = params.toString();
-    router.push(qs ? `?${qs}` : '?');
-  }, [router, searchParams]);
+  const navigate = useCallback(
+    (newPrefix) => {
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      if (newPrefix) params.set('path', newPrefix);
+      else params.delete('path');
+      const qs = params.toString();
+      router.push(qs ? `?${qs}` : '?');
+    },
+    [router, searchParams],
+  );
 
   const refreshAll = useCallback(async () => {
     await refresh();
@@ -120,96 +163,104 @@ export default function DrivePage({ scope }) {
   }, [refresh]);
 
   // ─── Context menu items ────────────────────────────────────────────────
-  const contextItems = useCallback((target) => {
-    const sel = selection.ids;
-    const isSelected = target ? sel.includes(target.id) : false;
-    const operatingIds = isSelected && sel.length > 1 ? sel : (target ? [target.id] : sel);
-    const operatingItems = operatingIds.map((id) => {
-      if (id.startsWith('folder:')) {
-        const p = id.slice(7);
-        const f = sorted.folders.find((x) => x.prefix === p);
-        return f ? { kind: 'folder', item: f, id } : null;
+  const contextItems = useCallback(
+    (target) => {
+      const sel = selection.ids;
+      const isSelected = target ? sel.includes(target.id) : false;
+      const operatingIds = isSelected && sel.length > 1 ? sel : target ? [target.id] : sel;
+      const operatingItems = operatingIds
+        .map((id) => {
+          if (id.startsWith('folder:')) {
+            const p = id.slice(7);
+            const f = sorted.folders.find((x) => x.prefix === p);
+            return f ? { kind: 'folder', item: f, id } : null;
+          }
+          const file = sorted.files.find((x) => x.key === id);
+          return file ? { kind: 'file', item: file, id } : null;
+        })
+        .filter(Boolean);
+
+      const single = operatingItems.length === 1 ? operatingItems[0] : null;
+      const items = [];
+
+      if (single?.kind === 'file') {
+        items.push({ label: 'Preview', icon: <Eye size={14} />, onClick: () => openPreview(single.item) });
+        items.push({ label: 'Download', icon: <Download size={14} />, onClick: () => downloadOne(single.item) });
+        if (scope === 'public' && single.item.url) {
+          items.push({ label: 'Copy link', icon: <LinkIcon size={14} />, onClick: () => copyLink(single.item.url) });
+        }
+        if (scope === 'private') {
+          items.push({ label: 'Share (pre-signed)', icon: <Share2 size={14} />, onClick: () => setShareKey(single.item.key) });
+        }
+        items.push({ divider: true });
+        items.push({ label: 'Rename', icon: <Pencil size={14} />, onClick: () => setRenameTarget(single) });
       }
-      const file = sorted.files.find((x) => x.key === id);
-      return file ? { kind: 'file', item: file, id } : null;
-    }).filter(Boolean);
 
-    const single = operatingItems.length === 1 ? operatingItems[0] : null;
-    const items = [];
-
-    if (single?.kind === 'file') {
-      items.push({ label: 'Preview', icon: <Eye size={14} />, onClick: () => openPreview(single.item) });
-      items.push({ label: 'Download', icon: <Download size={14} />, onClick: () => downloadOne(single.item) });
-      if (scope === 'public' && single.item.url) {
-        items.push({ label: 'Copy link', icon: <LinkIcon size={14} />, onClick: () => copyLink(single.item.url) });
+      if (single?.kind === 'folder') {
+        items.push({ label: 'Open', icon: <FolderOpen size={14} />, onClick: () => navigate(single.item.prefix) });
+        items.push({ label: 'Download as ZIP', icon: <Archive size={14} />, onClick: () => zipFolder(single.item) });
+        items.push({ divider: true });
+        items.push({ label: 'Rename', icon: <Pencil size={14} />, onClick: () => setRenameTarget(single) });
       }
-      if (scope === 'private') {
-        items.push({ label: 'Share (pre-signed)', icon: <Share2 size={14} />, onClick: () => setShareKey(single.item.key) });
+
+      if (operatingItems.length > 1) {
+        items.push({ label: `Download ${operatingItems.length} as ZIP`, icon: <Archive size={14} />, onClick: () => zipMultiple(operatingItems) });
       }
-      items.push({ divider: true });
-      items.push({ label: 'Rename', icon: <Pencil size={14} />, onClick: () => setRenameTarget(single) });
-    }
 
-    if (single?.kind === 'folder') {
-      items.push({ label: 'Open', icon: <FolderOpen size={14} />, onClick: () => navigate(single.item.prefix) });
-      items.push({ label: 'Download as ZIP', icon: <Archive size={14} />, onClick: () => zipFolder(single.item) });
-      items.push({ divider: true });
-      items.push({ label: 'Rename', icon: <Pencil size={14} />, onClick: () => setRenameTarget(single) });
-    }
+      if (operatingItems.length >= 1) {
+        items.push({ label: 'Move…', icon: <Move size={14} />, onClick: () => setMoveDialog({ mode: 'move', items: operatingItems }) });
+        items.push({ label: 'Copy…', icon: <Copy size={14} />, onClick: () => setMoveDialog({ mode: 'copy', items: operatingItems }) });
+        items.push({ divider: true });
+        items.push({
+          label: 'Delete',
+          icon: <Trash2 size={14} />,
+          danger: true,
+          onClick: () => askDelete(operatingItems),
+        });
+      }
 
-    if (operatingItems.length > 1) {
-      items.push({ label: `Download ${operatingItems.length} as ZIP`, icon: <Archive size={14} />, onClick: () => zipMultiple(operatingItems) });
-    }
-
-    if (operatingItems.length >= 1) {
-      items.push({ label: 'Move…', icon: <Move size={14} />, onClick: () => setMoveDialog({ mode: 'move', items: operatingItems }) });
-      items.push({ label: 'Copy…', icon: <Copy size={14} />, onClick: () => setMoveDialog({ mode: 'copy', items: operatingItems }) });
-      items.push({ divider: true });
-      items.push({
-        label: 'Delete',
-        icon: <Trash2 size={14} />,
-        danger: true,
-        onClick: () => askDelete(operatingItems),
-      });
-    }
-
-    return items;
-  }, [selection.ids, sorted, scope, navigate]); // eslint-disable-line
+      return items;
+    },
+    [selection.ids, sorted, scope, navigate],
+  ); // eslint-disable-line
 
   // ─── Actions ────────────────────────────────────────────────────────────
-  const previewableFiles = useMemo(
-    () => sorted.files.filter((f) => ['image','video','audio','pdf','text'].includes(categoryOf(f.mime || '', f.name))),
-    [sorted.files],
-  );
+  const previewableFiles = useMemo(() => sorted.files.filter((f) => ['image', 'video', 'audio', 'pdf', 'text'].includes(categoryOf(f.mime || '', f.name))), [sorted.files]);
 
-  const openPreview = useCallback((file) => {
-    const idx = previewableFiles.findIndex((f) => f.key === file.key);
-    if (idx === -1) {
-      // File is in another folder OR non-previewable. If previewable mime, open in standalone single-file preview.
-      const cat = categoryOf(file.mime || '', file.name);
-      if (['image','video','audio','pdf','text'].includes(cat)) {
-        setPreviewState({ startIndex: 0, files: [file] });
+  const openPreview = useCallback(
+    (file) => {
+      const idx = previewableFiles.findIndex((f) => f.key === file.key);
+      if (idx === -1) {
+        // File is in another folder OR non-previewable. If previewable mime, open in standalone single-file preview.
+        const cat = categoryOf(file.mime || '', file.name);
+        if (['image', 'video', 'audio', 'pdf', 'text'].includes(cat)) {
+          setPreviewState({ startIndex: 0, files: [file] });
+          return;
+        }
+        driveApi.previewUrl(scope, file.key).then(({ url }) => window.open(url, '_blank'));
         return;
       }
-      driveApi.previewUrl(scope, file.key).then(({ url }) => window.open(url, '_blank'));
-      return;
-    }
-    setPreviewState({ startIndex: idx });
-  }, [previewableFiles, scope]);
+      setPreviewState({ startIndex: idx });
+    },
+    [previewableFiles, scope],
+  );
 
-  const downloadOne = useCallback(async (file) => {
-    try {
-      const { url } = await driveApi.previewUrl(scope, file.key);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (err) {
-      toast.error('Failed to start download');
-    }
-  }, [scope]);
+  const downloadOne = useCallback(
+    async (file) => {
+      try {
+        const { url } = await driveApi.previewUrl(scope, file.key);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (err) {
+        toast.error('Failed to start download');
+      }
+    },
+    [scope],
+  );
 
   const copyLink = useCallback(async (url) => {
     const ok = await copyToClipboard(url);
@@ -217,125 +268,143 @@ export default function DrivePage({ scope }) {
     else toast.error('Failed to copy');
   }, []);
 
-  const zipFolder = useCallback(async (folder) => {
-    const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const controller = new AbortController();
-    batchControllers.current.set(id, controller);
-    setBatches((b) => [...b, { id, label: `Zipping ${folder.name}`, status: 'uploading', percent: 0 }]);
-    try {
-      await downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`, controller.signal);
-      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'done', percent: 100 } : x));
-    } catch (err) {
-      const cancelled = err?.name === 'AbortError';
-      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x));
-    } finally {
-      batchControllers.current.delete(id);
-    }
-  }, [scope]);
-
-  const zipMultiple = useCallback(async (items) => {
-    const fileItems = items.filter((x) => x.kind === 'file').map((x) => x.item);
-    const folderItems = items.filter((x) => x.kind === 'folder').map((x) => x.item);
-    if (fileItems.length === 0 && folderItems.length === 0) return;
-
-    if (folderItems.length === 0) {
+  const zipFolder = useCallback(
+    async (folder) => {
       const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const controller = new AbortController();
       batchControllers.current.set(id, controller);
-      setBatches((b) => [...b, { id, label: `Zipping ${fileItems.length} files`, status: 'uploading' }]);
+      setBatches((b) => [...b, { id, label: `Zipping ${folder.name}`, status: 'uploading', percent: 0 }]);
       try {
-        await downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`, controller.signal);
-        setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'done' } : x));
+        await downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`, controller.signal);
+        setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: 'done', percent: 100 } : x)));
       } catch (err) {
         const cancelled = err?.name === 'AbortError';
-        setBatches((b) => b.map((x) => x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x));
+        setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x)));
       } finally {
         batchControllers.current.delete(id);
       }
-    } else {
-      // Mixed selection: zip each folder individually + one for the loose files.
-      for (const folder of folderItems) await zipFolder(folder);
-      if (fileItems.length) await zipMultiple(fileItems.map((f) => ({ kind: 'file', item: f })));
-    }
-  }, [scope, zipFolder]);
+    },
+    [scope],
+  );
 
-  const askDelete = useCallback((items) => {
-    const fileCount = items.filter((x) => x.kind === 'file').length;
-    const folderCount = items.filter((x) => x.kind === 'folder').length;
-    const parts = [];
-    if (folderCount) parts.push(`${folderCount} folder${folderCount > 1 ? 's' : ''}`);
-    if (fileCount) parts.push(`${fileCount} file${fileCount > 1 ? 's' : ''}`);
-    setConfirm({
-      title: 'Delete?',
-      message: `Permanently delete ${parts.join(' and ')}?\n\nThis cannot be undone.`,
-      danger: true,
-      confirmLabel: 'Delete',
-      action: async () => {
-        setConfirmBusy(true);
+  const zipMultiple = useCallback(
+    async (items) => {
+      const fileItems = items.filter((x) => x.kind === 'file').map((x) => x.item);
+      const folderItems = items.filter((x) => x.kind === 'folder').map((x) => x.item);
+      if (fileItems.length === 0 && folderItems.length === 0) return;
+
+      if (folderItems.length === 0) {
+        const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const controller = new AbortController();
+        batchControllers.current.set(id, controller);
+        setBatches((b) => [...b, { id, label: `Zipping ${fileItems.length} files`, status: 'uploading' }]);
         try {
-          // Folders: recursive delete each. Files: batch delete.
-          const fileKeys = items.filter((x) => x.kind === 'file').map((x) => x.item.key);
-          if (fileKeys.length) await driveApi.deleteKeys(scope, fileKeys);
-          for (const f of items.filter((x) => x.kind === 'folder')) {
-            await driveApi.deleteFolder(scope, f.item.prefix);
-          }
-          toast.success('Deleted');
-          selection.clear();
-          await refreshAll();
-          setConfirm(null);
+          await downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`, controller.signal);
+          setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: 'done' } : x)));
         } catch (err) {
-          toast.error(err.message || 'Delete failed');
+          const cancelled = err?.name === 'AbortError';
+          setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x)));
         } finally {
-          setConfirmBusy(false);
+          batchControllers.current.delete(id);
         }
-      },
-    });
-  }, [scope, selection, refreshAll]);
+      } else {
+        // Mixed selection: zip each folder individually + one for the loose files.
+        for (const folder of folderItems) await zipFolder(folder);
+        if (fileItems.length) await zipMultiple(fileItems.map((f) => ({ kind: 'file', item: f })));
+      }
+    },
+    [scope, zipFolder],
+  );
 
-  // ─── Upload handling ───────────────────────────────────────────────────
-  const handleUpload = useCallback(async (entries, label) => {
-    if (!entries.length) return;
-    const id = `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const controller = new AbortController();
-    batchControllers.current.set(id, controller);
-    setBatches((b) => [...b, { id, label, status: 'uploading', percent: 0 }]);
-    try {
-      await uploadEntries({
-        scope,
-        prefix,
-        entries,
-        signal: controller.signal,
-        onProgress: ({ percent }) => {
-          setBatches((b) => b.map((x) => x.id === id ? { ...x, percent } : x));
+  const askDelete = useCallback(
+    (items) => {
+      const fileCount = items.filter((x) => x.kind === 'file').length;
+      const folderCount = items.filter((x) => x.kind === 'folder').length;
+      const parts = [];
+      if (folderCount) parts.push(`${folderCount} folder${folderCount > 1 ? 's' : ''}`);
+      if (fileCount) parts.push(`${fileCount} file${fileCount > 1 ? 's' : ''}`);
+      setConfirm({
+        title: 'Delete?',
+        message: `Permanently delete ${parts.join(' and ')}?\n\nThis cannot be undone.`,
+        danger: true,
+        confirmLabel: 'Delete',
+        action: async () => {
+          setConfirmBusy(true);
+          try {
+            // Folders: recursive delete each. Files: batch delete.
+            const fileKeys = items.filter((x) => x.kind === 'file').map((x) => x.item.key);
+            if (fileKeys.length) await driveApi.deleteKeys(scope, fileKeys);
+            for (const f of items.filter((x) => x.kind === 'folder')) {
+              await driveApi.deleteFolder(scope, f.item.prefix);
+            }
+            toast.success('Deleted');
+            selection.clear();
+            await refreshAll();
+            setConfirm(null);
+          } catch (err) {
+            toast.error(err.message || 'Delete failed');
+          } finally {
+            setConfirmBusy(false);
+          }
         },
       });
-      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: 'done', percent: 100 } : x));
-      await refreshAll();
-    } catch (err) {
-      const cancelled = err?.name === 'AbortError';
-      setBatches((b) => b.map((x) => x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x));
-      if (!cancelled) toast.error(err.message || 'Upload failed');
-      else toast('Upload cancelled');
-    } finally {
-      batchControllers.current.delete(id);
-    }
-  }, [scope, prefix, refreshAll]);
+    },
+    [scope, selection, refreshAll],
+  );
+
+  // ─── Upload handling ───────────────────────────────────────────────────
+  const handleUpload = useCallback(
+    async (entries, label) => {
+      if (!entries.length) return;
+      const id = `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const controller = new AbortController();
+      batchControllers.current.set(id, controller);
+      setBatches((b) => [...b, { id, label, status: 'uploading', percent: 0 }]);
+      try {
+        await uploadEntries({
+          scope,
+          prefix,
+          entries,
+          signal: controller.signal,
+          onProgress: ({ percent }) => {
+            setBatches((b) => b.map((x) => (x.id === id ? { ...x, percent } : x)));
+          },
+        });
+        setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: 'done', percent: 100 } : x)));
+        await refreshAll();
+      } catch (err) {
+        const cancelled = err?.name === 'AbortError';
+        setBatches((b) => b.map((x) => (x.id === id ? { ...x, status: cancelled ? 'cancelled' : 'error', message: cancelled ? 'Cancelled' : err.message } : x)));
+        if (!cancelled) toast.error(err.message || 'Upload failed');
+        else toast('Upload cancelled');
+      } finally {
+        batchControllers.current.delete(id);
+      }
+    },
+    [scope, prefix, refreshAll],
+  );
 
   const cancelBatch = useCallback((id) => {
     const c = batchControllers.current.get(id);
     if (c) c.abort();
   }, []);
 
-  const onUploadFiles = useCallback((fileList) => {
-    const entries = Array.from(fileList).map((file) => ({ file, relativePath: file.name }));
-    handleUpload(entries, `Uploading ${entries.length} file${entries.length > 1 ? 's' : ''}`);
-  }, [handleUpload]);
+  const onUploadFiles = useCallback(
+    (fileList) => {
+      const entries = Array.from(fileList).map((file) => ({ file, relativePath: file.name }));
+      handleUpload(entries, `Uploading ${entries.length} file${entries.length > 1 ? 's' : ''}`);
+    },
+    [handleUpload],
+  );
 
-  const onUploadFolder = useCallback((fileList) => {
-    const entries = fileListToEntries(fileList);
-    const folderName = entries[0]?.relativePath?.split('/')[0] || 'folder';
-    handleUpload(entries, `Uploading folder “${folderName}” (${entries.length} files)`);
-  }, [handleUpload]);
+  const onUploadFolder = useCallback(
+    (fileList) => {
+      const entries = fileListToEntries(fileList);
+      const folderName = entries[0]?.relativePath?.split('/')[0] || 'folder';
+      handleUpload(entries, `Uploading folder “${folderName}” (${entries.length} files)`);
+    },
+    [handleUpload],
+  );
 
   // ─── Drag and drop on page ─────────────────────────────────────────────
   const onDragEnter = (e) => {
@@ -348,7 +417,10 @@ export default function DrivePage({ scope }) {
     if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     dragCounter.current -= 1;
-    if (dragCounter.current <= 0) { dragCounter.current = 0; setDropOver(false); }
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDropOver(false);
+    }
   };
   const onDragOver = (e) => {
     if (e.dataTransfer?.types?.includes('Files')) {
@@ -375,30 +447,33 @@ export default function DrivePage({ scope }) {
   };
 
   // ─── Keyboard shortcuts ─────────────────────────────────────────────────
-  const allCurrentIds = useMemo(
-    () => [...sorted.folders.map((f) => `folder:${f.prefix}`), ...sorted.files.map((f) => f.key)],
-    [sorted],
-  );
+  const allCurrentIds = useMemo(() => [...sorted.folders.map((f) => `folder:${f.prefix}`), ...sorted.files.map((f) => f.key)], [sorted]);
   useKeyboardShortcuts({
     onSelectAll: () => selection.setAll(allCurrentIds),
     onDelete: () => {
       if (selection.size === 0) return;
-      const items = selection.ids.map((id) => {
-        if (id.startsWith('folder:')) {
-          const p = id.slice(7);
-          const f = sorted.folders.find((x) => x.prefix === p);
-          return f ? { kind: 'folder', item: f } : null;
-        }
-        const file = sorted.files.find((x) => x.key === id);
-        return file ? { kind: 'file', item: file } : null;
-      }).filter(Boolean);
+      const items = selection.ids
+        .map((id) => {
+          if (id.startsWith('folder:')) {
+            const p = id.slice(7);
+            const f = sorted.folders.find((x) => x.prefix === p);
+            return f ? { kind: 'folder', item: f } : null;
+          }
+          const file = sorted.files.find((x) => x.key === id);
+          return file ? { kind: 'file', item: file } : null;
+        })
+        .filter(Boolean);
       askDelete(items);
     },
     onSearch: () => {
       if (window.innerWidth < 768) setSearchOverlay(true);
       else searchBarRef.current?.focus();
     },
-    onEsc: () => { selection.clear(); ctxMenu.close(); setActiveSearch(null); },
+    onEsc: () => {
+      selection.clear();
+      ctxMenu.close();
+      setActiveSearch(null);
+    },
     enabled: !previewState && !confirm && !renameTarget && !moveDialog && !shareKey && !newFolderOpen,
   });
 
@@ -432,15 +507,18 @@ export default function DrivePage({ scope }) {
   };
 
   // ─── Selection bar handlers ─────────────────────────────────────────────
-  const selectionItems = () => selection.ids.map((id) => {
-    if (id.startsWith('folder:')) {
-      const p = id.slice(7);
-      const f = sorted.folders.find((x) => x.prefix === p);
-      return f ? { kind: 'folder', item: f, id } : null;
-    }
-    const file = sorted.files.find((x) => x.key === id);
-    return file ? { kind: 'file', item: file, id } : null;
-  }).filter(Boolean);
+  const selectionItems = () =>
+    selection.ids
+      .map((id) => {
+        if (id.startsWith('folder:')) {
+          const p = id.slice(7);
+          const f = sorted.folders.find((x) => x.prefix === p);
+          return f ? { kind: 'folder', item: f, id } : null;
+        }
+        const file = sorted.files.find((x) => x.key === id);
+        return file ? { kind: 'file', item: file, id } : null;
+      })
+      .filter(Boolean);
 
   // ─── Dialog submit handlers ─────────────────────────────────────────────
   const submitNewFolder = async (name) => {
@@ -461,9 +539,7 @@ export default function DrivePage({ scope }) {
     if (!renameTarget) return;
     setRenaming(true);
     try {
-      const payload = renameTarget.kind === 'folder'
-        ? { prefix: renameTarget.item.prefix, newName }
-        : { key: renameTarget.item.key, newName };
+      const payload = renameTarget.kind === 'folder' ? { prefix: renameTarget.item.prefix, newName } : { key: renameTarget.item.key, newName };
       await driveApi.rename(scope, payload);
       toast.success('Renamed');
       setRenameTarget(null);
@@ -527,19 +603,15 @@ export default function DrivePage({ scope }) {
     <div className="h-screen overflow-hidden bg-[#272727] text-[#f5f5f5] flex flex-col">
       <Navbar />
 
-      <div
-        className="flex-1 flex relative min-h-0"
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-      >
+      <div className="flex-1 flex relative min-h-0" onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop}>
         {/* Sidebar — desktop */}
         <div className="hidden md:block">
           <Sidebar
             scope={scope}
             currentPrefix={prefix}
-            onNavigate={(p) => { navigate(p); }}
+            onNavigate={(p) => {
+              navigate(p);
+            }}
             onFileOpen={(file) => openPreview(file)}
             refreshKey={treeRefreshKey}
           />
@@ -553,8 +625,14 @@ export default function DrivePage({ scope }) {
               <Sidebar
                 scope={scope}
                 currentPrefix={prefix}
-                onNavigate={(p) => { navigate(p); setSidebarOpen(false); }}
-                onFileOpen={(file) => { openPreview(file); setSidebarOpen(false); }}
+                onNavigate={(p) => {
+                  navigate(p);
+                  setSidebarOpen(false);
+                }}
+                onFileOpen={(file) => {
+                  openPreview(file);
+                  setSidebarOpen(false);
+                }}
                 refreshKey={treeRefreshKey}
                 onClose={() => setSidebarOpen(false)}
               />
@@ -571,8 +649,8 @@ export default function DrivePage({ scope }) {
                 scope={scope}
                 prefix={prefix}
                 onJump={(r) => navigate(r.folder)}
-                onSubmit={({ q, results, truncated }) => { setActiveSearch({ q, results, truncated }); selection.clear(); }}
-                onClearActive={() => setActiveSearch(null)}
+                onSubmit={({ q }) => runSearch(q)}
+                onClearActive={clearSearch}
                 activeQuery={activeSearch?.q}
               />
               <div className="flex-1" />
@@ -591,14 +669,11 @@ export default function DrivePage({ scope }) {
             {activeSearch ? (
               <div className="flex items-center gap-2 text-sm bg-blue-600/10 border border-blue-600/30 text-blue-200 rounded-md px-3 py-2">
                 <span className="font-medium truncate">
-                  Results for “{activeSearch.q}”: {sorted.files.length}{activeSearch.truncated ? '+' : ''}
+                  Results for “{activeSearch.q}”: {sorted.files.length}
+                  {activeSearch.truncated ? '+' : ''}
                 </span>
                 <div className="flex-1" />
-                <button
-                  type="button"
-                  onClick={() => setActiveSearch(null)}
-                  className="text-xs px-2 py-1 rounded bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-200"
-                >
+                <button type="button" onClick={clearSearch} className="text-xs px-2 py-1 rounded bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-200">
                   Clear search
                 </button>
               </div>
@@ -611,27 +686,15 @@ export default function DrivePage({ scope }) {
             {loading ? (
               <Loader />
             ) : sorted.folders.length === 0 && sorted.files.length === 0 ? (
-              activeSearch
-                ? <SearchEmpty q={activeSearch.q} onClear={() => setActiveSearch(null)} />
-                : <EmptyState onUploadFiles={onUploadFiles} />
+              activeSearch ? (
+                <SearchEmpty q={activeSearch.q} onClear={clearSearch} />
+              ) : (
+                <EmptyState onUploadFiles={onUploadFiles} />
+              )
             ) : view === 'grid' ? (
-              <FileGrid
-                folders={sorted.folders}
-                files={sorted.files}
-                selection={selection}
-                onItemClick={onItemClick}
-                onItemOpen={onItemOpen}
-                onItemContext={onItemContext}
-              />
+              <FileGrid folders={sorted.folders} files={sorted.files} selection={selection} onItemClick={onItemClick} onItemOpen={onItemOpen} onItemContext={onItemContext} />
             ) : (
-              <FileList
-                folders={sorted.folders}
-                files={sorted.files}
-                selection={selection}
-                onItemClick={onItemClick}
-                onItemOpen={onItemOpen}
-                onItemContext={onItemContext}
-              />
+              <FileList folders={sorted.folders} files={sorted.files} selection={selection} onItemClick={onItemClick} onItemOpen={onItemOpen} onItemContext={onItemContext} />
             )}
           </div>
         </main>
@@ -653,13 +716,18 @@ export default function DrivePage({ scope }) {
             <SearchBar
               scope={scope}
               prefix={prefix}
-              onJump={(r) => { navigate(r.folder); setSearchOverlay(false); }}
-              onSubmit={({ q, results, truncated }) => { setActiveSearch({ q, results, truncated }); selection.clear(); setSearchOverlay(false); }}
-              onClearActive={() => setActiveSearch(null)}
+              onJump={(r) => {
+                navigate(r.folder);
+                setSearchOverlay(false);
+              }}
+              onSubmit={({ q }) => runSearch(q)}
+              onClearActive={clearSearch}
               activeQuery={activeSearch?.q}
               autoFocus
             />
-            <button onClick={() => setSearchOverlay(false)} className="mt-2 w-full btn-neutral">Close</button>
+            <button onClick={() => setSearchOverlay(false)} className="mt-2 w-full btn-neutral">
+              Close
+            </button>
           </div>
         </div>
       )}
@@ -678,19 +746,10 @@ export default function DrivePage({ scope }) {
       />
 
       {/* Context menu */}
-      <ContextMenu
-        menu={ctxMenu.menu}
-        items={ctxMenu.menu ? contextItems(ctxMenu.menu.target) : []}
-        onClose={ctxMenu.close}
-      />
+      <ContextMenu menu={ctxMenu.menu} items={ctxMenu.menu ? contextItems(ctxMenu.menu.target) : []} onClose={ctxMenu.close} />
 
       {/* Modals */}
-      <NewFolderModal
-        open={newFolderOpen}
-        onClose={() => setNewFolderOpen(false)}
-        onSubmit={submitNewFolder}
-        busy={creatingFolder}
-      />
+      <NewFolderModal open={newFolderOpen} onClose={() => setNewFolderOpen(false)} onSubmit={submitNewFolder} busy={creatingFolder} />
       <RenameDialog
         open={Boolean(renameTarget)}
         initialName={renameTarget?.item?.name || ''}
@@ -718,24 +777,10 @@ export default function DrivePage({ scope }) {
         onSubmit={submitMoveCopy}
         busy={moveBusy}
       />
-      {scope === 'private' && (
-        <ShareDialog open={Boolean(shareKey)} fileKey={shareKey} onClose={() => setShareKey(null)} />
-      )}
-      {previewState && (
-        <PreviewModal
-          scope={scope}
-          files={previewState.files || previewableFiles}
-          startIndex={previewState.startIndex}
-          onClose={() => setPreviewState(null)}
-        />
-      )}
+      {scope === 'private' && <ShareDialog open={Boolean(shareKey)} fileKey={shareKey} onClose={() => setShareKey(null)} />}
+      {previewState && <PreviewModal scope={scope} files={previewState.files || previewableFiles} startIndex={previewState.startIndex} onClose={() => setPreviewState(null)} />}
 
-      <UploadProgress
-        batches={batches}
-        onDismiss={(id) => setBatches((b) => b.filter((x) => x.id !== id))}
-        onCancel={cancelBatch}
-        lift={selection.size > 0}
-      />
+      <UploadProgress batches={batches} onDismiss={(id) => setBatches((b) => b.filter((x) => x.id !== id))} onCancel={cancelBatch} lift={selection.size > 0} />
     </div>
   );
 }
@@ -744,7 +789,9 @@ function EmptyState({ onUploadFiles }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-20 text-gray-400">
       <div className="w-16 h-16 rounded-full bg-[#1c1c1c] border border-gray-800 flex items-center justify-center mb-4">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7.8C3 6.12 3 5.28 3.327 4.638a3 3 0 0 1 1.311-1.311C5.28 3 6.12 3 7.8 3h1.6l2 2H16.2c1.68 0 2.52 0 3.162.327a3 3 0 0 1 1.311 1.311C21 7.28 21 8.12 21 9.8V14.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 19 17.88 19 16.2 19H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 16.72 3 15.88 3 14.2z"/></svg>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 7.8C3 6.12 3 5.28 3.327 4.638a3 3 0 0 1 1.311-1.311C5.28 3 6.12 3 7.8 3h1.6l2 2H16.2c1.68 0 2.52 0 3.162.327a3 3 0 0 1 1.311 1.311C21 7.28 21 8.12 21 9.8V14.2c0 1.68 0 2.52-.327 3.162a3 3 0 0 1-1.311 1.311C18.72 19 17.88 19 16.2 19H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 16.72 3 15.88 3 14.2z" />
+        </svg>
       </div>
       <p className="text-sm font-medium">This folder is empty</p>
       <p className="text-xs mt-1 max-w-xs">Drag and drop files here, or use the upload buttons above.</p>
@@ -757,7 +804,9 @@ function SearchEmpty({ q, onClear }) {
     <div className="flex flex-col items-center justify-center text-center py-20 text-gray-400">
       <p className="text-sm font-medium">No matches for “{q}”</p>
       <p className="text-xs mt-1">Try a different keyword or clear the filter.</p>
-      <button onClick={onClear} className="mt-4 btn-neutral">Clear search</button>
+      <button onClick={onClear} className="mt-4 btn-neutral">
+        Clear search
+      </button>
     </div>
   );
 }
