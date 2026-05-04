@@ -45,8 +45,12 @@ export default function UploadProgress({ batches, onDismiss, onCancel, lift = fa
               </div>
 
               {inflight && (
-                <div className="h-1 bg-[#2a2a2a]">
-                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${b.percent || 0}%` }} />
+                <div className="h-1 bg-[#2a2a2a] overflow-hidden">
+                  {b.indeterminate ? (
+                    <div className="h-full w-1/3 bg-blue-500 progress-indeterminate" />
+                  ) : (
+                    <div className="h-full bg-blue-500 transition-all" style={{ width: `${b.percent || 0}%` }} />
+                  )}
                 </div>
               )}
 

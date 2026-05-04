@@ -57,22 +57,74 @@ export const driveApi = {
   zipUrl: (scope) => `${base(scope)}/zip`,
 };
 
-// Triggers a native browser download using a hidden form POST.
-// This allows the browser to handle the stream directly, avoiding memory issues and showing immediate progress.
-export function downloadZip(scope, payload, filename = 'download.zip') {
+// Streams the zip response into memory, reporting progress, then triggers a
+// browser save via blob URL. Supports cancel via AbortSignal.
+//
+// Note: the server streams the zip without a Content-Length, so total size is
+// unknown until completion. Progress is reported in received bytes; the UI
+// renders an indeterminate bar in that case.
+export async function downloadZipWithProgress(scope, payload, filename = 'download.zip', { signal, onProgress } = {}) {
   const body = { ...(payload || {}), filename };
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = `/api/drive/${scope}/zip`;
-  form.target = '_self'; // Ensure download happens in the current tab
+  const res = await fetch(`/api/drive/${scope}/zip`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+    cache: 'no-store',
+  });
 
-  const input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'payload';
-  input.value = JSON.stringify(body);
-  form.appendChild(input);
+  if (!res.ok) {
+    let msg = `Zip failed (${res.status})`;
+    try {
+      const text = await res.text();
+      if (text) msg = text.slice(0, 300);
+    } catch {}
+    throw new Error(msg);
+  }
 
-  document.body.appendChild(form);
-  form.submit();
-  window.setTimeout(() => form.remove(), 0);
+  const totalHeader = res.headers.get('content-length');
+  const total = totalHeader ? Number(totalHeader) : 0;
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('Streaming not supported in this browser');
+
+  const chunks = [];
+  let received = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        received += value.byteLength;
+        if (onProgress) {
+          onProgress({
+            loaded: received,
+            total,
+            percent: total ? Math.min(100, (received / total) * 100) : null,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    try { await reader.cancel(); } catch {}
+    throw err;
+  }
+
+  const blob = new Blob(chunks, { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return { bytes: received };
 }

@@ -25,10 +25,23 @@ import useDriveData from '@/app/hooks/useDriveData';
 import useSelection from '@/app/hooks/useSelection';
 import useContextMenu from '@/app/hooks/useContextMenu';
 import useKeyboardShortcuts from '@/app/hooks/useKeyboardShortcuts';
-import { driveApi, downloadZip } from '@/app/lib/driveClient';
+import { driveApi, downloadZipWithProgress } from '@/app/lib/driveClient';
 import { uploadEntries, fileListToEntries, snapshotDataTransferEntries, walkSnapshot } from '@/app/lib/uploadClient';
 import { categoryOf } from '@/app/lib/fileTypes';
 import copyToClipboard from '@/utils/copyToClipboard';
+
+function formatBytes(n) {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return `${n} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let i = -1;
+  let v = n;
+  do {
+    v /= 1024;
+    i++;
+  } while (v >= 1024 && i < units.length - 1);
+  return `${v.toFixed(v >= 10 ? 0 : 1)} ${units[i]}`;
+}
 
 function sortItems(data = {}, sort) {
   const folders = Array.isArray(data.folders) ? data.folders : [];
@@ -270,15 +283,76 @@ export default function DrivePage({ scope }) {
     else toast.error('Failed to copy');
   }, []);
 
-  const zipFolder = useCallback(
-    (folder) => {
-      try {
-        downloadZip(scope, { folderPrefix: folder.prefix }, `${folder.name}.zip`);
-      } catch (err) {
-        toast.error('Failed to start zip');
-      }
+  const startZipDownload = useCallback(
+    ({ payload, filename, label }) => {
+      const id = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const controller = new AbortController();
+      batchControllers.current.set(id, controller);
+      setBatches((b) => [
+        ...b,
+        { id, label, status: 'uploading', percent: 0, indeterminate: true, message: 'Preparing…' },
+      ]);
+
+      downloadZipWithProgress(scope, payload, filename, {
+        signal: controller.signal,
+        onProgress: ({ loaded, total, percent }) => {
+          setBatches((b) =>
+            b.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    percent: percent ?? 0,
+                    indeterminate: percent === null,
+                    message: total
+                      ? `${formatBytes(loaded)} / ${formatBytes(total)}`
+                      : `${formatBytes(loaded)} streamed`,
+                  }
+                : x,
+            ),
+          );
+        },
+      })
+        .then(({ bytes }) => {
+          setBatches((b) =>
+            b.map((x) =>
+              x.id === id
+                ? { ...x, status: 'done', percent: 100, indeterminate: false, message: `Saved (${formatBytes(bytes)})` }
+                : x,
+            ),
+          );
+        })
+        .catch((err) => {
+          const cancelled = err?.name === 'AbortError';
+          setBatches((b) =>
+            b.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    status: cancelled ? 'cancelled' : 'error',
+                    indeterminate: false,
+                    message: cancelled ? 'Cancelled' : err?.message || 'Zip failed',
+                  }
+                : x,
+            ),
+          );
+          if (!cancelled) toast.error(err?.message || 'Zip failed');
+        })
+        .finally(() => {
+          batchControllers.current.delete(id);
+        });
     },
     [scope],
+  );
+
+  const zipFolder = useCallback(
+    (folder) => {
+      startZipDownload({
+        payload: { folderPrefix: folder.prefix },
+        filename: `${folder.name}.zip`,
+        label: `Zipping “${folder.name}”`,
+      });
+    },
+    [startZipDownload],
   );
 
   const zipMultiple = useCallback(
@@ -288,18 +362,24 @@ export default function DrivePage({ scope }) {
       if (fileItems.length === 0 && folderItems.length === 0) return;
 
       if (folderItems.length === 0) {
-        try {
-          downloadZip(scope, { keys: fileItems.map((f) => f.key) }, `files-${Date.now()}.zip`);
-        } catch (err) {
-          toast.error('Failed to start zip');
-        }
+        startZipDownload({
+          payload: { keys: fileItems.map((f) => f.key) },
+          filename: `files-${Date.now()}.zip`,
+          label: `Zipping ${fileItems.length} file${fileItems.length > 1 ? 's' : ''}`,
+        });
       } else {
         // Zip each folder individually + one for the loose files.
         for (const folder of folderItems) zipFolder(folder);
-        if (fileItems.length) zipMultiple(fileItems.map((f) => ({ kind: 'file', item: f })));
+        if (fileItems.length) {
+          startZipDownload({
+            payload: { keys: fileItems.map((f) => f.key) },
+            filename: `files-${Date.now()}.zip`,
+            label: `Zipping ${fileItems.length} file${fileItems.length > 1 ? 's' : ''}`,
+          });
+        }
       }
     },
-    [scope, zipFolder],
+    [startZipDownload, zipFolder],
   );
 
   const askDelete = useCallback(
