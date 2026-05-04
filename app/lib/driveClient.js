@@ -57,55 +57,69 @@ export const driveApi = {
   zipUrl: (scope) => `${base(scope)}/zip`,
 };
 
-// Streams a single file through the server-side download proxy, reporting progress,
-// then triggers a browser save via blob URL. Supports cancel via AbortSignal.
-// Content-Length is forwarded from R2, enabling determinate progress bars.
+// Downloads a single file with streaming progress. Strategy:
+// 1. Fetch metadata + presigned URL from server (lightweight, no file data)
+// 2. Stream directly from R2/CDN — fastest path, requires CORS on the bucket
+// 3. On CORS/network error, fall back to server proxy — still has progress
+//    because total is known from step 1
 export async function downloadFileWithProgress(scope, key, filename, { signal, onProgress } = {}) {
-  const url = new URL(`/api/drive/${scope}/download`, window.location.origin);
-  url.searchParams.set('key', key);
-
-  const res = await fetch(url.toString(), { signal, cache: 'no-store' });
-
-  if (!res.ok) {
-    let msg = `Download failed (${res.status})`;
-    try {
-      const text = await res.text();
-      if (text) msg = text.slice(0, 300);
-    } catch {}
+  // Step 1: get direct URL + size from server (no file bytes flow through server here)
+  const metaUrl = new URL(`/api/drive/${scope}/download-url`, window.location.origin);
+  metaUrl.searchParams.set('key', key);
+  const metaRes = await fetch(metaUrl.toString(), { signal, cache: 'no-store' });
+  if (!metaRes.ok) {
+    let msg = `Download failed (${metaRes.status})`;
+    try { const j = await metaRes.json(); msg = j.error || msg; } catch {}
     throw new Error(msg);
   }
+  const { url: directUrl, contentLength, contentType } = await metaRes.json();
+  const total = contentLength || 0;
 
-  const totalHeader = res.headers.get('content-length');
-  const total = totalHeader ? Number(totalHeader) : 0;
-
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error('Streaming not supported in this browser');
-
-  const chunks = [];
-  let received = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        chunks.push(value);
-        received += value.byteLength;
-        if (onProgress) {
-          onProgress({
-            loaded: received,
-            total,
-            percent: total ? Math.min(100, (received / total) * 100) : null,
-          });
+  // Step 2: stream chunks from fetchUrl, reporting progress
+  const streamFrom = async (fetchUrl) => {
+    const res = await fetch(fetchUrl, { signal, cache: 'no-store' });
+    if (!res.ok) throw new Error(`Download failed (${res.status})`);
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('Streaming not supported in this browser');
+    const chunks = [];
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+          if (onProgress) {
+            onProgress({
+              loaded: received,
+              total,
+              percent: total ? Math.min(100, (received / total) * 100) : null,
+            });
+          }
         }
       }
+    } catch (err) {
+      try { await reader.cancel(); } catch {}
+      throw err;
     }
+    return { chunks, received };
+  };
+
+  let result;
+  try {
+    // Try direct from R2/CDN (fast — no server hop for file data)
+    result = await streamFrom(directUrl);
   } catch (err) {
-    try { await reader.cancel(); } catch {}
-    throw err;
+    if (err?.name === 'AbortError') throw err;
+    // CORS not configured or transient error — fall back to server proxy.
+    // total is already known so progress bar stays accurate.
+    const proxyUrl = new URL(`/api/drive/${scope}/download`, window.location.origin);
+    proxyUrl.searchParams.set('key', key);
+    result = await streamFrom(proxyUrl.toString());
   }
 
-  const blob = new Blob(chunks, { type: res.headers.get('content-type') || 'application/octet-stream' });
+  const blob = new Blob(result.chunks, { type: contentType || 'application/octet-stream' });
   const blobUrl = URL.createObjectURL(blob);
   try {
     const a = document.createElement('a');
@@ -119,7 +133,7 @@ export async function downloadFileWithProgress(scope, key, filename, { signal, o
     setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   }
 
-  return { bytes: received };
+  return { bytes: result.received };
 }
 
 // Streams the zip response into memory, reporting progress, then triggers a
