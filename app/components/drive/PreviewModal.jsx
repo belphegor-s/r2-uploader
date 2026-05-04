@@ -75,7 +75,7 @@ export default function PreviewModal({ scope, files, startIndex, onClose, onAfte
 
           {url && (
             <>
-              <a href={url} download={file.name} className="p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a]" aria-label="Download" title="Download">
+              <a href={url} download={file.name} target="_blank" rel="noopener noreferrer" className="p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a]" aria-label="Download" title="Download">
                 <Download size={16} />
               </a>
               <a href={url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-md bg-[#2a2a2a] hover:bg-[#3a3a3a] hidden sm:inline-flex" aria-label="Open" title="Open in new tab">
@@ -132,7 +132,7 @@ function PreviewContent({ cat, file, url }) {
   return (
     <div className="h-full w-full flex flex-col items-center justify-center gap-4 text-gray-400 text-sm p-6">
       <p>No inline preview for this file type.</p>
-      <a href={url} download={file.name} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-white">Download</a>
+      <a href={url} download={file.name} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-white">Download</a>
     </div>
   );
 }
