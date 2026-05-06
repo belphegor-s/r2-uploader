@@ -31,7 +31,7 @@ function Row({ item, isFolder, isSelected, onClick, onDoubleClick, onContextMenu
     >
       <div className="flex items-center justify-center">
         {isSelected ? (
-          <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center"><Check size={10} strokeWidth={3} /></div>
+          <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center"><Check size={10} strokeWidth={3} className="text-white" /></div>
         ) : (
           <div className="w-4 h-4 rounded border border-gray-600" />
         )}
@@ -83,11 +83,11 @@ export default function FileList({ folders, files, selection, onItemClick, onIte
         >
           {allSelected ? (
             <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
-              <Check size={10} strokeWidth={3} />
+              <Check size={10} strokeWidth={3} className="text-white" />
             </div>
           ) : someSelected ? (
             <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
-              <Minus size={10} strokeWidth={3} />
+              <Minus size={10} strokeWidth={3} className="text-white" />
             </div>
           ) : (
             <div className="w-4 h-4 rounded border border-gray-600 hover:border-gray-400 transition-colors" />
