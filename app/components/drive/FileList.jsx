@@ -1,7 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
-import { Check } from 'lucide-react';
+import { Check, Minus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { FolderIcon, FileTypeIcon } from './fileIcons';
 import { formatFileSize } from '@/utils/formatFileSize';
@@ -56,10 +56,43 @@ export default function FileList({ folders, files, selection, onItemClick, onIte
     ...files.map((f) => f.key),
   ];
 
+  const totalCount = allIds.length;
+  const selectedCount = allIds.filter((id) => selection.isSelected(id)).length;
+  const allSelected = totalCount > 0 && selectedCount === totalCount;
+  const someSelected = selectedCount > 0 && !allSelected;
+
+  function handleHeaderCheckbox(e) {
+    e.stopPropagation();
+    if (allSelected) {
+      selection.clear();
+    } else {
+      selection.setAll(allIds);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-gray-800 bg-[#1c1c1c] overflow-hidden">
       <div className="hidden sm:grid grid-cols-[24px_1fr_auto_auto] gap-3 px-3 py-2 border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-500">
-        <div></div>
+        <div
+          role="checkbox"
+          aria-checked={allSelected ? true : someSelected ? 'mixed' : false}
+          tabIndex={0}
+          className="flex items-center justify-center cursor-pointer"
+          onClick={handleHeaderCheckbox}
+          onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && handleHeaderCheckbox(e)}
+        >
+          {allSelected ? (
+            <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
+              <Check size={10} strokeWidth={3} />
+            </div>
+          ) : someSelected ? (
+            <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
+              <Minus size={10} strokeWidth={3} />
+            </div>
+          ) : (
+            <div className="w-4 h-4 rounded border border-gray-600 hover:border-gray-400 transition-colors" />
+          )}
+        </div>
         <div>Name</div>
         <div>Size</div>
         <div>Modified</div>
