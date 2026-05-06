@@ -86,8 +86,8 @@ export default function FileList({ folders, files, selection, onItemClick, onIte
               <Check size={10} strokeWidth={3} className="text-white" />
             </div>
           ) : someSelected ? (
-            <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center">
-              <Minus size={10} strokeWidth={3} className="text-white" />
+            <div className="w-4 h-4 rounded bg-blue-500/20 border border-blue-400/50 flex items-center justify-center">
+              <Minus size={10} strokeWidth={3} className="text-blue-300" />
             </div>
           ) : (
             <div className="w-4 h-4 rounded border border-gray-600 hover:border-gray-400 transition-colors" />
