@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'R2 Uploader',
+  title: 'R2 Drive',
   description: 'Upload files to R2',
 };
 

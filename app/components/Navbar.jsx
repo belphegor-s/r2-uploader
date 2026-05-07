@@ -17,7 +17,7 @@ const Navbar = () => {
     <nav className="flex justify-between items-center bg-[#313131] border-b border-gray-700 shadow-md px-3 sm:px-4 py-3 sticky top-0 z-30">
       <h1 className="text-base sm:text-xl font-semibold flex items-center gap-2">
         <Image src={CFIcon} alt="Cloudflare Logo" width={32} height={32} />
-        <span className="hidden sm:inline">R2 Uploader</span>
+        <span className="hidden sm:inline">R2 Drive</span>
       </h1>
 
       {(isPublic || isPrivate) && (
@@ -29,17 +29,9 @@ const Navbar = () => {
             <Link
               key={item.href}
               href={item.href}
-              className={`relative flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm transition-colors ${
-                item.active ? 'text-white' : 'text-gray-300 hover:text-white'
-              }`}
+              className={`relative flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm transition-colors ${item.active ? 'text-white' : 'text-gray-300 hover:text-white'}`}
             >
-              {item.active && (
-                <motion.span
-                  layoutId="navPill"
-                  className="absolute inset-0 bg-blue-600 rounded-full -z-0"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                />
-              )}
+              {item.active && <motion.span layoutId="navPill" className="absolute inset-0 bg-blue-600 rounded-full -z-0" transition={{ type: 'spring', stiffness: 380, damping: 30 }} />}
               <span className="relative z-10 flex items-center gap-1.5">
                 {item.icon} {item.label}
               </span>

@@ -5,7 +5,7 @@ const qrcode = require('qrcode');
 
 async function generate() {
   const secret = speakeasy.generateSecret({
-    name: 'R2 Uploader (ayush)',
+    name: 'R2 Drive (ayush)',
     issuer: 'r2.pixly.sh',
   });
 

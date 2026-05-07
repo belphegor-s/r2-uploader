@@ -61,7 +61,7 @@ export default function LoginPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="relative w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-10">
           <Image src={CFIcon} alt="Cloudflare" width={40} height={40} />
-          <h1 className="text-2xl font-semibold text-white">R2 Uploader</h1>
+          <h1 className="text-2xl font-semibold text-white">R2 Drive</h1>
           <p className="text-sm text-gray-300">Sign in to continue</p>
         </div>
 
