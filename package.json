@@ -1,5 +1,5 @@
 {
-  "name": "r2-uploader",
+  "name": "r2-drive",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,6 +11,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.802.0",
     "@aws-sdk/s3-request-presigner": "^3.815.0",
+    "@vercel/analytics": "^2.0.1",
     "archiver": "^7.0.1",
     "busboy": "^1.6.0",
     "date-fns": "^4.1.0",
