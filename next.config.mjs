@@ -8,7 +8,21 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: storage.pixly.sh *.r2.cloudflarestorage.com; font-src 'self' data:; connect-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com; frame-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com; media-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com; object-src 'self' *.r2.cloudflarestorage.com; frame-ancestors 'none'; upgrade-insecure-requests;",
+            value: `
+              default-src 'self';
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com;
+              style-src 'self' 'unsafe-inline';
+              img-src 'self' blob: data: storage.pixly.sh *.r2.cloudflarestorage.com;
+              font-src 'self' data:;
+              connect-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com https://vitals.vercel-insights.com;
+              frame-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com;
+              media-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com;
+              object-src 'none';
+              frame-ancestors 'none';
+              upgrade-insecure-requests;
+            `
+              .replace(/\s{2,}/g, ' ')
+              .trim(),
           },
           {
             key: 'Strict-Transport-Security',
