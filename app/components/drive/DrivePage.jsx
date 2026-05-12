@@ -238,7 +238,7 @@ export default function DrivePage({ scope }) {
   ); // eslint-disable-line
 
   // ─── Actions ────────────────────────────────────────────────────────────
-  const previewableFiles = useMemo(() => sorted.files.filter((f) => ['image', 'video', 'audio', 'pdf', 'text'].includes(categoryOf(f.mime || '', f.name))), [sorted.files]);
+  const previewableFiles = useMemo(() => sorted.files.filter((f) => ['image', 'video', 'audio', 'pdf', 'text', 'doc'].includes(categoryOf(f.mime || '', f.name))), [sorted.files]);
 
   const openPreview = useCallback(
     (file) => {
@@ -246,7 +246,7 @@ export default function DrivePage({ scope }) {
       if (idx === -1) {
         // File is in another folder OR non-previewable. If previewable mime, open in standalone single-file preview.
         const cat = categoryOf(file.mime || '', file.name);
-        if (['image', 'video', 'audio', 'pdf', 'text'].includes(cat)) {
+        if (['image', 'video', 'audio', 'pdf', 'text', 'doc'].includes(cat)) {
           setPreviewState({ startIndex: 0, files: [file] });
           return;
         }

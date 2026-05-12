@@ -126,6 +126,9 @@ function PreviewContent({ cat, file, url, onDownload }) {
   if (cat === 'pdf') {
     return <iframe src={url} title={file.name} className="w-full h-full bg-white" />;
   }
+  if (cat === 'doc') {
+    return <DocPreview url={url} name={file.name} />;
+  }
   if (cat === 'text') {
     return <TextPreview url={url} name={file.name} />;
   }
@@ -136,6 +139,26 @@ function PreviewContent({ cat, file, url, onDownload }) {
         <Download size={16} />
         Download
       </button>
+    </div>
+  );
+}
+
+function DocPreview({ url, name }) {
+  if (!url) return null;
+
+  const googleViewer = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+
+  return (
+    <div className="h-full w-full flex flex-col">
+      <div className="flex-1 relative">
+        <iframe
+          src={googleViewer}
+          title={name}
+          className="w-full h-full bg-white"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          referrerPolicy="no-referrer"
+        />
+      </div>
     </div>
   );
 }

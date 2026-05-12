@@ -15,7 +15,7 @@ const nextConfig = {
               img-src 'self' blob: data: storage.pixly.sh *.r2.cloudflarestorage.com;
               font-src 'self' data:;
               connect-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com https://vitals.vercel-insights.com;
-              frame-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com;
+              frame-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com docs.google.com;
               media-src 'self' storage.pixly.sh *.r2.cloudflarestorage.com;
               object-src 'none';
               frame-ancestors 'none';

@@ -4,6 +4,18 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { requireAuthAndScope, badRequest, serverError } from '@/lib/r2/guard';
 import { r2Client } from '@/lib/r2/client';
 import { ensureRootPrefixed } from '@/lib/r2/keys';
+import { sign } from '@/lib/sign-token';
+
+const DOC_EXTS = new Set(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp']);
+
+function isDocFile(key) {
+  const ext = (key.split('.').pop() || '').toLowerCase();
+  return DOC_EXTS.has(ext);
+}
+
+function isLocalDev(hostname) {
+  return hostname === 'localhost' || hostname.startsWith('127.') || hostname.startsWith('192.168.') || hostname === '[::1]';
+}
 
 export async function GET(req, { params }) {
   const { scope: scopeName } = await params;
@@ -16,6 +28,15 @@ export async function GET(req, { params }) {
 
   try {
     ensureRootPrefixed(key, scope.rootPrefix);
+
+    if (isDocFile(key) && !isLocalDev(req.nextUrl.hostname)) {
+      const expires = Math.floor(Date.now() / 1000) + 600;
+      const payload = `${scopeName}:${key}:${expires}`;
+      const sig = sign(payload);
+      const proxyUrl = `${req.nextUrl.origin}/api/doc-proxy?scope=${encodeURIComponent(scopeName)}&key=${encodeURIComponent(key)}&exp=${expires}&sig=${encodeURIComponent(sig)}`;
+      return NextResponse.json({ url: proxyUrl });
+    }
+
     if (scope.publicBase) {
       return NextResponse.json({ url: `${scope.publicBase}/${key}` });
     }
